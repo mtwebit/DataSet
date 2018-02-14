@@ -49,10 +49,11 @@ class DataSet extends WireData implements Module {
   public function init() {
     // TODO check if Tasker is available
 
-    // install a conditional hook after page save to import dictionary entries
-    // PW 3.0.62 has a bug and needs manual fix for conditional hooks:
+    // install a conditional hook after page save to import dataset entries
+    // Note: PW 3.0.62 has a bug and needs manual fix for conditional hooks:
     // https://github.com/processwire/processwire-issues/issues/261
-    $this->addHookAfter('Page(template='.$this->dataset_template.')::changed('.$this->sourcefield.')', $this, 'handleSourceChange');
+    foreach ($this->dataset_templates as $t)
+      $this->addHookAfter('Page(template='.$t.')::changed('.$this->sourcefield.')', $this, 'handleSourceChange');
     $this->addHookAfter('InputfieldTextarea::processInput', $this, 'validateConfigChange');
   }
 
@@ -92,7 +93,8 @@ class DataSet extends WireData implements Module {
 
     //$field->message("Field '{$field->name}' changed on '{$page->title}'.");
 
-    if ($page->template != $this->dataset_template) return;
+    // TODO: check page template
+    // if (!$this->dataset_templates->has($page->template)) return;
 
     if (strlen($field->value)==0) return;
 
@@ -137,7 +139,7 @@ class DataSet extends WireData implements Module {
       $task = $tasker->createTask(__CLASS__, 'purge', $dataSetPage, 'Purge the data set', $data);
       if ($purgeTask == NULL) return; // tasker failed to add a task
       $data['dep'] = $purgeTask->id; // add a dependency to import tasks: first delete old entries
-      $firstTask = $prevTask =$purgeTask;
+      $firstTask = $prevTask = $purgeTask;
       $this->message("Created a task to purge data set before import.", Notice::debug);
     }
 
@@ -399,16 +401,18 @@ class DataSet extends WireData implements Module {
       return false;
     }
 
+    // check the page selector
+    if (strlen($selector)<2 || !strpos($selector, '=')) {
+      $this->error("ERROR: invalid selector '{$selector}' found in the input.");
+      return NULL;
+    }
+
+    // check the page title
     if (!isset($field_data['title']) || strlen($field_data['title'])<1) {
       $this->error("ERROR: invalid / empty title '{$field_data['title']}' found in '{$selector}'.");
       return NULL;
     }
 
-    // check and normalize the page title
-    if (strlen($selector)<2 || !strpos($selector, '=')) {
-      $this->error("ERROR: invalid selector '{$selector}' found in the input.");
-      return NULL;
-    }
 /* TODO
     if (false !== strpos($selector, '&')) { // entities present...
       $title = html_entity_decode($title, 0,

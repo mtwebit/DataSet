@@ -17,19 +17,19 @@ class DataSetConfig extends ModuleConfig {
     return array(
       'sourcefield' => 'sourcefield',
       'configfield' => 'configfield',
-      'dataset_template' => 'dataset',
+      'dataset_templates' => 'dataset',
     );
   }
 
   public function getInputfields() {
     $inputfields = parent::getInputfields();
 
-    $fieldset = $this->wire('modules')->get("InputfieldFieldset");
-    $fieldset->label = __("Requirements");
+    $fieldset = $this->wire('modules')->get('InputfieldFieldset');
+    $fieldset->label = __('Requirements');
 
-    if (!$this->modules->isInstalled("Tasker")) {
-      $f = $this->modules->get("InputfieldMarkup");
-      $this->message("Tasker module is missing.", Notice::warning);
+    if (!$this->modules->isInstalled('Tasker')) {
+      $f = $this->modules->get('InputfieldMarkup');
+      $this->message('Tasker module is missing.', Notice::warning);
       $f->value = '<p>Tasker module is missing. Install it before using this module.</p>';
       $f->columnWidth = 50;
       $fieldset->add($f);
@@ -38,13 +38,13 @@ class DataSetConfig extends ModuleConfig {
     $inputfields->add($fieldset);
 
 /********************  Template settings ******************************/
-    $fieldset = $this->wire('modules')->get("InputfieldFieldset");
-    $fieldset->label = __("Template setup");
+    $fieldset = $this->wire('modules')->get('InputfieldFieldset');
+    $fieldset->label = __('Template Setup');
 
-    $f = $this->modules->get('InputfieldSelect');
-    $f->attr('name', 'dataset_template');
-    $f->label = 'Data set template';
-    $f->description = __('This is the root element of the data set. It should contain a source and a config field.');
+    $f = $this->modules->get('InputfieldSelectMultiple');
+    $f->attr('name', 'dataset_templates');
+    $f->label = 'Data set templates';
+    $f->description = __('These are the root elements of data sets. They should contain a source and a config field.');
     $f->options = array();
     $f->required = true;
     $f->columnWidth = 100;

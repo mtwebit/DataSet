@@ -100,10 +100,14 @@ class DataSetXmlProcessor extends WireData implements Module {
     $xml = new \XMLReader();
 
     // open the file
-    if (!$xml->open($file->filename)) {
+    if (!$xml->open($file->filename, 'utf-8')) {
       $this->error("Unable to open {$file->name}.");
       return false;
     }
+
+    // properties must be set after open
+    // Do not substitute entities and do not expand references
+    $xml->setParserProperty(\XMLReader::SUBST_ENTITIES, false);
 
 /* TODO skip validation as we don't specify a DTD atm.
     $xml->setParserProperty(\XMLReader::VALIDATE, false);
@@ -124,7 +128,7 @@ class DataSetXmlProcessor extends WireData implements Module {
     // set the import status to not finished
     $notFinished = true;
 
-    // find the first <entry> tag
+    // find the first entry tag
     while ($xml->read() && $xml->localName != $params['input']['entry_tag']);
 
     // check if we need to skip a few records
@@ -160,6 +164,9 @@ class DataSetXmlProcessor extends WireData implements Module {
       // read and partially process the XML data
       $xml_string = $xml->readOuterXML();
       $xml_data = new \SimpleXMLElement($xml_string);
+      $xml_data->substituteEntities = false;
+      $xml_data->resolveExternals = false;
+
 
       // PW selector to select matching child nodes
       $selector = $params['pages']['selector'];
@@ -177,7 +184,15 @@ class DataSetXmlProcessor extends WireData implements Module {
           }
           $value = (string) $xnodes[0]; // TODO multiple values?
         }
-        $field_data[$field] = trim($value, "\"'\t\n\r\0\x0B");
+        // trim whitespaces from the value
+        $value = trim($value, "\"'\t\n\r\0\x0B");
+        // don't allow long titles -> TODO should be configurable
+        if ($field=='title' && mb_strlen($value) > 50) {
+          $spos = mb_strpos($value, ' ', 50);
+          if ($spos < 1) $spos = 70;
+          $value = mb_substr($value, 0, $spos);
+        }
+        $field_data[$field] = $value;
         if (strpos($selector, '@'.$field)) {
           $svalue = wire('sanitizer')->selectorValue($value);
           $selector = str_replace('@'.$field, $svalue, $selector);
