@@ -129,15 +129,38 @@ class DataSetCsvProcessor extends WireData implements Module {
       // $selector = vsprintf($params['pages']['selector'], $csv_data[1..]);
       $selector = $params['pages']['selector']; // will be processed later
 
+      // stores field data read from the input
+      $field_data = array();
+  
       // transfer input data to a field array
       // TODO sanitize user input
-      $field_data = array();
       foreach ($params['fieldmappings'] as $field => $column) {
-        if (!isset($csv_data[$column])) {
-          $this->error("ERROR: invalid column {$column} found for field {$field}. Skipping the record.");
-          continue 2; // go to the next record
+        if (is_numeric($column)) { // a single column from the input
+          if (!isset($csv_data[$column])) {
+            $this->error("ERROR: column '{$column}' for field '{$field}' not found in the input. Could be a wrong delimiter or malformed input?");
+            break 2; // go to the next record in the input
+          }
+          $field_data[$field] = trim($csv_data[$column], "\"'\t\n\r\0\x0B");
+        } else if (is_array($column)) { // a set of columns from the input
+          $mixvalue = '';
+          foreach ($column as $col) {
+            if (is_string($col)) $mixvalue .= $col; // a string between column data
+            else if (is_numeric($col)) { // a single column
+              if (!isset($csv_data[$col])) {
+                $this->error("ERROR: column '{$col}' for field '{$field}' not found in the input. Could be a wrong delimiter or malformed input?");
+                break 3; // go to the next record in the input
+              }
+              $mixvalue .= trim($csv_data[$column], "\"'\t\n\r\0\x0B");
+            } else {
+              $this->error("ERROR: invalid column specifier '{$col}' for field '{$field}'");
+              break 3; // stop processing records, the error needs to be fixed
+            }
+          }
+          $field_data[$field] = $mixvalue;
+        } else { // the column is not an integer and not an array
+          $this->error("ERROR: invalid column specifier '{$column}' for field '{$field}'");
+          break 2; // stop processing records, the error needs to be fixed
         }
-        $field_data[$field] = trim($csv_data[$column], "\"'\t\n\r\0\x0B");
         if (strpos($selector, '@'.$field)) {
           $svalue = wire('sanitizer')->selectorValue($field_data[$field]);
           $selector = str_replace('@'.$field, $svalue, $selector);
