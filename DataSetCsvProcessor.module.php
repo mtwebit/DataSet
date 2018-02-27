@@ -114,6 +114,14 @@ class DataSetCsvProcessor extends WireData implements Module {
       $entrySerial++;
 
       // read and partially process the CSV data
+      if (isset($params['input']['encoding'])) {
+        $csv_string = iconv($params['input']['encoding'], 'utf-8', $csv_string);
+        if ($csv_string === FALSE) {
+          $this->error("ERROR: invalid encoding '{$params['input']['encoding']}'.");
+          break;
+        }
+      }
+
       // TODO csv input and field data will be trimmed. Provide an option for this.
       $csv_string = trim($csv_string);
       $this->message("Processing input record: {$csv_string}.", Notice::debug);
@@ -138,7 +146,7 @@ class DataSetCsvProcessor extends WireData implements Module {
         if (is_numeric($column)) { // a single column from the input
           if (!isset($csv_data[$column])) {
             $this->error("ERROR: column '{$column}' for field '{$field}' not found in the input. Could be a wrong delimiter or malformed input?");
-            break 2; // go to the next record in the input
+            continue 2; // go to the next record in the input
           }
           $field_data[$field] = trim($csv_data[$column], "\"'\t\n\r\0\x0B");
         } else if (is_array($column)) { // a set of columns from the input
@@ -148,9 +156,9 @@ class DataSetCsvProcessor extends WireData implements Module {
             else if (is_numeric($col)) { // a single column
               if (!isset($csv_data[$col])) {
                 $this->error("ERROR: column '{$col}' for field '{$field}' not found in the input. Could be a wrong delimiter or malformed input?");
-                break 3; // go to the next record in the input
+                continue 3; // go to the next record in the input
               }
-              $mixvalue .= trim($csv_data[$column], "\"'\t\n\r\0\x0B");
+              $mixvalue .= trim($csv_data[$col], "\"'\t\n\r\0\x0B");
             } else {
               $this->error("ERROR: invalid column specifier '{$col}' for field '{$field}'");
               break 3; // stop processing records, the error needs to be fixed
