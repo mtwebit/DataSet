@@ -129,7 +129,7 @@ class DataSetCsvProcessor extends WireData implements Module {
       // add a serial number to the beginning of the record
       // it will get index 0 in the $csv_data array
       // this also ensures that CSV files with only one column (and no delimiter) can be processed this way
-      $csv_data = explode($params['input']['delimiter'], $entrySerial.$params['input']['delimiter'].$csv_string);
+      $csv_data = str_getcsv($entrySerial.$params['input']['delimiter'].$csv_string, $params['input']['delimiter'], $params['input']['enclosure']);
 
       // TODO sanitize user input
       // OLD version for processing the selector
