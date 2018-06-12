@@ -403,7 +403,7 @@ class DataSet extends WireData implements Module {
 
     // check the page selector
     if (strlen($selector)<2 || !strpos($selector, '=')) {
-      $this->error("ERROR: invalid selector '{$selector}' found in the input.");
+      $this->error("ERROR: invalid page selector '{$selector}' found in the input.");
       return NULL;
     }
 

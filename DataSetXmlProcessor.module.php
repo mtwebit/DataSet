@@ -68,12 +68,12 @@ class DataSetXmlProcessor extends WireData implements Module {
     // count entries
     $count = 0;
     // find the first entry
-    while ($xml->read() && $xml->localName != $params['input']['entry_tag']);
+    while ($xml->read() && $xml->localName != $params['input']['delimiter']);
 
     // increase the counter if the first entry has been found
-    if ($xml->localName == $params['input']['entry_tag']) $count++;
+    if ($xml->localName == $params['input']['delimiter']) $count++;
 
-    while ($xml->next($params['input']['entry_tag'])) {
+    while ($xml->next($params['input']['delimiter'])) {
       if ($xml->nodeType != \XMLReader::ELEMENT) continue;
       $count++;
     }
@@ -129,13 +129,13 @@ class DataSetXmlProcessor extends WireData implements Module {
     $notFinished = true;
 
     // find the first entry tag
-    while ($xml->read() && $xml->localName != $params['input']['entry_tag']);
+    while ($xml->read() && $xml->localName != $params['input']['delimiter']);
 
     // check if we need to skip a few records
     if ($taskData['offset'] > 0) {
       $this->message('Skipping '.$taskData['offset'].' entries.', Notice::debug);
       // read the next entry and alter the finished status if there is no more entries
-      while ($notFinished=$xml->next($params['input']['entry_tag'])) {
+      while ($notFinished=$xml->next($params['input']['delimiter'])) {
         // skip the end element
         if ($xml->nodeType != \XMLReader::ELEMENT) continue;
         // skip the specified number of entries
@@ -151,7 +151,7 @@ class DataSetXmlProcessor extends WireData implements Module {
       // skip the element if it is empty
       if ($xml->isEmptyElement) continue;
 
-      if ($xml->nodeType != \XMLReader::ELEMENT || $xml->localName != $params['input']['entry_tag']) {
+      if ($xml->nodeType != \XMLReader::ELEMENT || $xml->localName != $params['input']['delimiter']) {
         // this should not happen
         $this->error("Internal XML parsing error at {$xml->localName}");
         // skip to the next <entry> tag
@@ -228,7 +228,7 @@ class DataSetXmlProcessor extends WireData implements Module {
         break;  // the while loop
       }
 
-    } while ($xml->next($params['input']['entry_tag']));
+    } while ($xml->next($params['input']['delimiter']));
 
     // close the XML input
     $xml->close();
