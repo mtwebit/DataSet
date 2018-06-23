@@ -312,7 +312,10 @@ class DataSet extends WireData implements Module {
       $fileConfig = $this->parseConfig($file->description);
       $templates[] = $fileConfig['pages']['template'];
     }
-    if (!count($templates)) return 'Nothing to purge.';
+    if (!count($templates)) {
+      $taskData['task_done'] = 1;
+      return 'Nothing to purge.';
+    }
 
     $selector = 'parent='.$dataSetPage->id.',template='.implode('|', $templates).',include=all';
 
