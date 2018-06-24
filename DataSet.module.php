@@ -341,8 +341,6 @@ class DataSet extends WireData implements Module {
       return true;
     }
 
-    $taskData['task_done'] = 1; // we're optimistic that we could finish the task
-
     // get a reference to Tasker and the task
     $tasker = wire('modules')->get('Tasker');
     $task = $params['task'];
@@ -359,17 +357,11 @@ class DataSet extends WireData implements Module {
       $child->delete(true); // delete children as well
 
       // Report progress and check for events if a milestone is reached
-      if ($tasker->saveProgressAtMilestone($task, $taskData)) {
+      if ($tasker->saveProgressAtMilestone($task, $taskData, $params)) {
         $this->message('Deleted pages: '.implode(', ', $deleted));
         $deleted = array();
       }
-      if (!$tasker->isActive($task)) {
-        $this->warning('The data set is not purged entirely since the task is no longer active.', Notice::debug);
-        $taskData['task_done'] = 0;
-        break; // the foreach loop
-      }
-      if ($params['timeout'] && $params['timeout'] <= time()) { // allowed execution time is over
-        $this->warning('The data set is not purged entirely since maximum execution time is too close.', Notice::debug);
+      if (!$tasker->allowedToExecute($task, $params)) { // reached execution limits
         $taskData['task_done'] = 0;
         break;  // the while loop
       }

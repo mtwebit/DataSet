@@ -191,9 +191,9 @@ class DataSetCsvProcessor extends WireData implements Module {
       }
 
       // saveProgressAtMilestone may have changed the task's state
-      if (!$tasker->isActive($task)) {
-        $taskData['offset'] = $entrySerial;
+      if (!$tasker->allowedToExecute($task, $params)) { // reached execution limits
         $taskData['task_done'] = 0;
+        $taskData['offset'] = $entrySerial;
         break; // the foreach loop
       }
 
