@@ -81,7 +81,7 @@ class DataSetConfig extends ModuleConfig {
 
     $f = $this->modules->get('InputfieldSelect');
     $f->attr('name', 'configfield');
-    $f->label = 'Field that contains data set configuration.';
+    $f->label = 'Field that contains data set global configuration.';
     $f->description = __('DataSet uses YAML format to describe the configuration.');
     $f->options = array();
     $f->required = true;
