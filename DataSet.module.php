@@ -47,14 +47,20 @@ class DataSet extends WireData implements Module {
    * This function attaches a hook for page save and decodes module options.
    */
   public function init() {
-    // TODO check if Tasker is available
+    if (!$this->modules->isInstalled('Tasker')) {
+      $this->message('Tasker module is missing.  Install it before using Dataset module.');
+      return;
+    }
 
-    // install a conditional hook after page save to import dataset entries
-    // Note: PW 3.0.62 has a bug and needs manual fix for conditional hooks:
+    // Installing conditional hooks
+    // Note: PW < 3.0.62 has a bug and needs manual fix for conditional hooks:
     // https://github.com/processwire/processwire-issues/issues/261
-    foreach ($this->dataset_templates as $t)
+    foreach ($this->dataset_templates as $t) {
+      // hook after page save to import dataset entries
       $this->addHookAfter('Page(template='.$t.')::changed('.$this->sourcefield.')', $this, 'handleSourceChange');
-    $this->addHookAfter('InputfieldTextarea::processInput', $this, 'validateConfigChange');
+      // hook to check global configuration changes on dataset pages
+      $this->addHookAfter('Page(template='.$t.')::changed('.$this->configfield.')', $this, 'validateConfigChange');
+    }
   }
 
 
@@ -87,14 +93,10 @@ class DataSet extends WireData implements Module {
     if (!is_object($field)) return;
 
     if ($field->name != $this->configfield) return;
-    // TODO also check for filefield description errors
 
     $page = $this->modules->ProcessPageEdit->getPage();
 
-    //$field->message("Field '{$field->name}' changed on '{$page->title}'.");
-
-    // TODO: check page template
-    // if (!$this->dataset_templates->has($page->template)) return;
+    $field->message("Field '{$field->name}' changed on '{$page->title}'.", Notice::debug);
 
     if (strlen($field->value)==0) return;
 
@@ -111,11 +113,11 @@ class DataSet extends WireData implements Module {
 
 
 /***********************************************************************
- * SETUP IMPORT TASKS
+ * TASK MANAGEMENT
  **********************************************************************/
 
   /**
-   * Create necessary tasks when the page is ready to save
+   * Create necessary tasks when the page is ready to be saved
    * 
    * @param $dataSetPage ProcessWire Page object
    */
@@ -136,7 +138,7 @@ class DataSet extends WireData implements Module {
 
     // if purge was requested on any file then purge the data set before any import occurs
     foreach ($files as $file) if ($file->hasTag(self::TAG_PURGE)) {
-      $task = $tasker->createTask(__CLASS__, 'purge', $dataSetPage, 'Purge the data set', $data);
+      $purgeTask = $tasker->createTask(__CLASS__, 'purge', $dataSetPage, 'Purge the data set', $data);
       if ($purgeTask == NULL) return; // tasker failed to add a task
       $data['dep'] = $purgeTask->id; // add a dependency to import tasks: first delete old entries
       $firstTask = $prevTask = $purgeTask;
@@ -160,19 +162,13 @@ class DataSet extends WireData implements Module {
 
     $tasker->activateTask($firstTask); // activate the first task
 
-/*
-    // TODO this is only for debugging: execute the first task right now
-    $tasker->executeTask($firstTask);
-    // TODO debug: dump out all messages
-    foreach (explode("\n", $firstTask->log_messages) as $msg) {
-      $this->message($msg);
+    // if TaskedAdmin is installed, redirect to its admin page for task execution
+    if ($this->modules->isInstalled('TaskerAdmin')) {
+      $taskerAdmin = $this->modules->get('TaskerAdmin');
+      $this->redirectUrl = taskerAdmin::taskedAdminUrl.'?id='.$firstTask->id.'&cmd=run';
+      // add a temporary hook to redirect to TaskerAdmin's monitoring page after saving the current page
+      $this->pages->addHookBefore('ProcessPageEdit::processSaveRedirect', $this, 'runDataSetTasks');
     }
-*/
-
-    // TODO this is only for debugging: execute the first task right now
-    $this->redirectUrl = wire('config')->urls->admin.'page/tasks/?id='.$firstTask->id.'&cmd=run';
-    // add a temporary hook to redirect to TaskerAdmin's monitoring page after saving the current page
-    $this->pages->addHookBefore('ProcessPageEdit::processSaveRedirect', $this, 'runDataSetTasks');
 
     return;
   }
