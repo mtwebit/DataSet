@@ -165,7 +165,7 @@ class DataSet extends WireData implements Module {
     // if TaskedAdmin is installed, redirect to its admin page for task execution
     if ($this->modules->isInstalled('TaskerAdmin')) {
       $taskerAdmin = $this->modules->get('TaskerAdmin');
-      $this->redirectUrl = taskerAdmin::taskedAdminUrl.'?id='.$firstTask->id.'&cmd=run';
+      $this->redirectUrl = $taskerAdmin->adminUrl.'?id='.$firstTask->id.'&cmd=run';
       // add a temporary hook to redirect to TaskerAdmin's monitoring page after saving the current page
       $this->pages->addHookBefore('ProcessPageEdit::processSaveRedirect', $this, 'runDataSetTasks');
     }
