@@ -221,6 +221,12 @@ class DataSet extends WireData implements Module {
     $params['pages'] = $fileConfig['pages'];
     $params['fieldmappings'] = $fileConfig['fieldmappings'];
 
+    // initialize task data if this is the first invocation
+    if ($taskData['records_processed'] == 0) {
+      // estimate the number of processable records
+      $taskData['max_records'] = $tsize;
+    }
+
     $ctype = mime_content_type($file->filename);
 
     // select the appropriate input processor
@@ -310,7 +316,8 @@ class DataSet extends WireData implements Module {
     }
     if (!count($templates)) {
       $taskData['task_done'] = 1;
-      return 'Nothing to purge.';
+      $this->message('Nothing to purge.');
+      return true;
     }
 
     $selector = 'parent='.$dataSetPage->id.',template='.implode('|', $templates).',include=all';
@@ -325,13 +332,13 @@ class DataSet extends WireData implements Module {
     if ($taskData['records_processed'] == 0) {
       // estimate the number of processable records
       $taskData['max_records'] = $tsize;
-      $taskData['records_processed'] = 0;
     }
 
-    // check if we have nothing to do
-    if ($tsize==0) {
+    // check if we have processed all records
+    if ($taskData['records_processed'] == $taskData['max_records']) {
       $taskData['task_done'] = 1;
-      return 'Done deleting data entries.';
+      $this->message('All records has been processed.');
+      return true;
     }
 
     $taskData['task_done'] = 1; // we're optimistic that we could finish the task

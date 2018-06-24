@@ -185,24 +185,18 @@ class DataSetCsvProcessor extends WireData implements Module {
       if ($newPage instanceof Page) $newPages[] = $newPage->title;
 
       // Report progress and check for events if a milestone is reached
-      if ($tasker->saveProgressAtMilestone($task, $taskData)) {
+      if ($tasker->saveProgressAtMilestone($task, $taskData, $params)) {
         $this->message('Import successful for '.implode(', ', $newPages));
         $newPages = array();
       }
 
+      // saveProgressAtMilestone may have changed the task's state
       if (!$tasker->isActive($task)) {
-        $this->message("Suspending import at offset {$entrySerial} since the import task is no longer active.", Notice::debug);
         $taskData['offset'] = $entrySerial;
         $taskData['task_done'] = 0;
         break; // the foreach loop
       }
 
-      if ($params['timeout'] && $params['timeout'] <= time()) { // allowed execution time is over
-        $this->message("Suspending import at offset {$entrySerial} since maximum execution time is over.", Notice::debug);
-        $taskData['offset'] = $entrySerial;
-        $taskData['task_done'] = 0;
-        break;  // the while loop
-      }
     }
 
     fclose($fd);

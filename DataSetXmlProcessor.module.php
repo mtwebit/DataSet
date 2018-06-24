@@ -214,18 +214,11 @@ class DataSetXmlProcessor extends WireData implements Module {
         $newPages = array();
       }
 
+      // saveProgressAtMilestone may have changed the task's state
       if (!$tasker->isActive($task)) {
-        $this->message("Suspending import at offset {$entrySerial} since the import task is no longer active.", Notice::debug);
         $taskData['offset'] = $entrySerial;
         $taskData['task_done'] = 0;
         break; // the foreach loop
-      }
-
-      if ($params['timeout'] && $params['timeout'] <= time()) { // allowed execution time is over
-        $this->message("Suspending import at offset {$entrySerial} since maximum execution time is over.", Notice::debug);
-        $taskData['offset'] = $entrySerial;
-        $taskData['task_done'] = 0;
-        break;  // the while loop
       }
 
     } while ($xml->next($params['input']['entry_tag']));
