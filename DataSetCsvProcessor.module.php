@@ -131,7 +131,7 @@ class DataSetCsvProcessor extends WireData implements Module {
       // this also ensures that CSV files with only one column (and no delimiter) can be processed this way
       $csv_data = str_getcsv($entrySerial.$params['input']['delimiter'].$csv_string, $params['input']['delimiter'], $params['input']['enclosure']);
 
-      // TODO sanitize user input
+      // TODO sanitize page selector
       // OLD version for processing the selector
       // It is buggy since %1$ refers to the 0. index element and it could not sanitize input
       // $selector = vsprintf($params['pages']['selector'], $csv_data[1..]);
@@ -169,6 +169,7 @@ class DataSetCsvProcessor extends WireData implements Module {
           $this->error("ERROR: invalid column specifier '{$column}' for field '{$field}'");
           break 2; // stop processing records, the error needs to be fixed
         }
+        // if this field is used in the page selector then replace it with its value
         if (strpos($selector, '@'.$field)) {
           $svalue = wire('sanitizer')->selectorValue($field_data[$field]);
           $selector = str_replace('@'.$field, $svalue, $selector);
@@ -184,24 +185,18 @@ class DataSetCsvProcessor extends WireData implements Module {
       if ($newPage instanceof Page) $newPages[] = $newPage->title;
 
       // Report progress and check for events if a milestone is reached
-      if ($tasker->saveProgressAtMilestone($task, $taskData)) {
+      if ($tasker->saveProgressAtMilestone($task, $taskData, $params)) {
         $this->message('Import successful for '.implode(', ', $newPages));
         $newPages = array();
       }
 
-      if (!$tasker->isActive($task)) {
-        $this->message("Suspending import at offset {$entrySerial} since the import task is no longer active.", Notice::debug);
-        $taskData['offset'] = $entrySerial;
+      // saveProgressAtMilestone may have changed the task's state
+      if (!$tasker->allowedToExecute($task, $params)) { // reached execution limits
         $taskData['task_done'] = 0;
+        $taskData['offset'] = $entrySerial;
         break; // the foreach loop
       }
 
-      if ($params['timeout'] && $params['timeout'] <= time()) { // allowed execution time is over
-        $this->message("Suspending import at offset {$entrySerial} since maximum execution time is over.", Notice::debug);
-        $taskData['offset'] = $entrySerial;
-        $taskData['task_done'] = 0;
-        break;  // the while loop
-      }
     }
 
     fclose($fd);

@@ -209,23 +209,15 @@ class DataSetXmlProcessor extends WireData implements Module {
 
 
       // Report progress and check for events if a milestone is reached
-      if ($tasker->saveProgressAtMilestone($task, $taskData)) {
+      if ($tasker->saveProgressAtMilestone($task, $taskData, $params)) {
         $this->message('Import successful for '.implode(', ', $newPages));
         $newPages = array();
       }
 
-      if (!$tasker->isActive($task)) {
-        $this->message("Suspending import at offset {$entrySerial} since the import task is no longer active.", Notice::debug);
+      if (!$tasker->allowedToExecute($task, $params)) { // reached execution limits
         $taskData['offset'] = $entrySerial;
         $taskData['task_done'] = 0;
         break; // the foreach loop
-      }
-
-      if ($params['timeout'] && $params['timeout'] <= time()) { // allowed execution time is over
-        $this->message("Suspending import at offset {$entrySerial} since maximum execution time is over.", Notice::debug);
-        $taskData['offset'] = $entrySerial;
-        $taskData['task_done'] = 0;
-        break;  // the while loop
       }
 
     } while ($xml->next($params['input']['delimiter']));
