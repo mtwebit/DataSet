@@ -299,11 +299,12 @@ class DataSet extends WireData implements Module {
    * @returns false on error, a result message on success
    */
   public function purge($dataSetPage, &$taskData, $params) {
+    /* remove the global config?
     $dataSetConfig = $this->parseConfig($dataSetPage->{$this->configfield});
     if ($dataSetConfig===false) {
       $this->error("ERROR: invalid data set configuration on page '{$dataSetPage->title}'.");
       return false;
-    }
+    }*/
 
     // determine what should be purged
     $files = $dataSetPage->{$this->sourcefield}->find('tags*='.self::TAG_PURGE);
@@ -315,6 +316,7 @@ class DataSet extends WireData implements Module {
     if (!count($templates)) return 'Nothing to purge.';
 
     $selector = 'parent='.$dataSetPage->id.',template='.implode('|', $templates).',include=all';
+    $this->message("Purging '{$dataSetPage->title}' using selector '{$selector}'.", Notice::debug);
 
     // calculate the task's actual size
     $tsize=$this->pages->count($selector);
@@ -429,11 +431,11 @@ class DataSet extends WireData implements Module {
 
     if ($dataPage->id) { // found a page with the same title
       if (isset($tags[self::TAG_UPDATE])) { // update the existing page
-        $this->message("Updating page '{$dataPage->title}'[{$dataPage->id}]", Notice::debug);
+        // $this->message("Updating page '{$dataPage->title}'[{$dataPage->id}]", Notice::debug);
         // TODO update fields
         return $dataPage;
       } else {
-        $this->message("NOTICE: not updating already existing data in '{$dataPage->title}'.");
+        $this->message("WARNING: not updating already existing data in '{$dataPage->title}'.");
         return NULL;
       }
     }
@@ -466,12 +468,30 @@ class DataSet extends WireData implements Module {
       return NULL;
     }
     $p->template = $template;
+    $pt = wire('templates')->get("$template");
+    if (!is_object($pt)) {
+      $this->error("ERROR: template '{$template}' does not exists.");
+      return NULL;
+    }
+
     $p->parent = $parent;
     $p->title = $title;
+
+    // TODO can we save the page now?
+    $externals = array(); // fields storing external files or images
     if (count($field_data)) foreach ($field_data as $field => $value) {
       if ($field == 'title') continue;
-      // if ($p->hasField($field)) $p->$field = $value;
-      $p->$field = $value;
+      if (!$pt->hasField($field)) {
+        $this->error("ERROR: template '{$template}' does not allow field '{$field}'.");
+        return NULL;
+      }
+      if ($pt->fields->get($field)->type instanceof FieldtypeFile
+          || $pt->fields->get($field)->type instanceof FieldtypeImage) {
+        // We can't add files to pages that are not saved. We'll do this later.
+        $externals[$field] = $value;
+      } else {
+        $p->$field = $value;
+      }
     }
 
 // TODO multi-language support for pages?
@@ -494,6 +514,14 @@ class DataSet extends WireData implements Module {
 
     // $this->message("{$parent->title} / {$title} [{$template}] created.", Notice::debug);
     $p->save(); // pages must be saved to be a parent or to be referenced
+
+    // after the page is saved we can download and attach external files and images
+    if (count($externals)) foreach ($externals as $field => $value) {
+      $this->message("DEBUG: downloading and adding {$value} to {$field}.");
+      $p->$field->add($value);
+    }
+    $p->save();
+
     return $p;
   }
 
@@ -509,7 +537,8 @@ class DataSet extends WireData implements Module {
    * @returns configuration as associative array
    */
   public function parseConfig($config) {
-    if (strlen($config)==0) return array(); // TODO default values?
+    // TODO check the configuration
+    if (strlen($config)==0) return false; // TODO load default values?
     return yaml_parse($config);
   }
 }
