@@ -202,7 +202,7 @@ class DataSetCsvProcessor extends WireData implements Module {
     fclose($fd);
 
     // print out some info for the user
-    $this->message('Import successful for '.implode(', ', $newPages));
+    if (count($newPages)) $this->message('Import successful for '.implode(', ', $newPages));
 
     return true;
   }
