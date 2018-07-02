@@ -55,7 +55,7 @@ class DataSet extends WireData implements Module {
     // Installing conditional hooks
     // Note: PW < 3.0.62 has a bug and needs manual fix for conditional hooks:
     // https://github.com/processwire/processwire-issues/issues/261
-    if (is_array($this->dataset_templates)) foreach ($this->dataset_templates as $t)
+    if (is_array($this->dataset_templates)) foreach ($this->dataset_templates as $t) {
       // hook after page save to import dataset entries
       $this->addHookAfter('Page(template='.$t.')::changed('.$this->sourcefield.')', $this, 'handleSourceChange');
       // hook to check global configuration changes on dataset pages
@@ -192,7 +192,7 @@ class DataSet extends WireData implements Module {
  **********************************************************************/
 
   /**
-   * Import a data set - a PW task
+   * Import a data set - a Tasker task
    * 
    * @param $dataSetPage ProcessWire Page object (the root of the data set)
    * @param $taskData task data assoc array
@@ -207,10 +207,16 @@ class DataSet extends WireData implements Module {
       return false;
     }
 
+    // get a reference to Tasker and the task
+    $tasker = wire('modules')->get('Tasker');
+    $task = $params['task'];
+
     // check if we still have the file and its tag
     $file=$dataSetPage->{$this->sourcefield}->findOne('name='.$taskData['file'].',tags*='.self::TAG_IMPORT.'|'.self::TAG_UPDATE.'|'.self::TAG_DELETE);
     if ($file==NULL) {
-      $this->error("ERROR: input file '".$taskData['file']."' is not present or has no tags on '{$dataSetPage->title}'.");
+      $this->error("ERROR: input file '".$taskData['file']."' is not present or it has no IMPORT tags on Page '{$dataSetPage->title}'.");
+      $this->warning("Moving task '{$task->title}' to the trash.");
+      $task->trash();
       return false;
     }
 
@@ -220,12 +226,6 @@ class DataSet extends WireData implements Module {
     $params['input'] = $fileConfig['input'];
     $params['pages'] = $fileConfig['pages'];
     $params['fieldmappings'] = $fileConfig['fieldmappings'];
-
-    // initialize task data if this is the first invocation
-    if ($taskData['records_processed'] == 0) {
-      // estimate the number of processable records
-      $taskData['max_records'] = $tsize;
-    }
 
     $ctype = mime_content_type($file->filename);
 
@@ -266,29 +266,23 @@ class DataSet extends WireData implements Module {
 
     if ($taskData['max_records'] == 0) { // empty file?
       $taskData['task_done'] = 1;
-      return 'Import is done (input is empty).';
+      $this->message('Import is done (input is empty).');
+      return true;
     }
 
     $this->message("Processing file {$file->name}.", Notice::debug);
 
-    // import the data set from the file
+    // import the data set from the file using the appropriate input processor
     $ret = $proc->process($dataSetPage, $file, $taskData, $params);
     if ($ret === false) return false;
 
     // check if the file has been only partially processed (e.g. due to max exec time is reached)
-    if ($taskData['offset'] != 0) {
-      return 'The file was only partially processed.';
+    if ($taskData['records_processed'] == $taskData['max_records']) {
+      $taskData['task_done'] = 1;
+      $this->message($taskData['file'].' has been processed.');
     }
 
-    if ($taskData['records_processed'] != $taskData['max_records']) {
-      $this->warning('NOTICE: DataSet import assertion failed: all files are done but not all records processed. '
-        . "Processed: {$taskData['records_processed']} =/= Max: {$taskData['max_records']}");
-    }
-
-    // file is ready, report back that task is done
-    $taskData['task_done'] = 1;
-
-    return $taskData['file'].' has been processed.';
+    return true;
   }
 
 
@@ -339,7 +333,7 @@ class DataSet extends WireData implements Module {
     // check if we have processed all records
     if ($taskData['records_processed'] == $taskData['max_records']) {
       $taskData['task_done'] = 1;
-      $this->message('All records has been processed.');
+      $this->message('Done deleting records.');
       return true;
     }
 
@@ -359,7 +353,7 @@ class DataSet extends WireData implements Module {
       $child->delete(true); // delete children as well
 
       // Report progress and check for events if a milestone is reached
-      if ($tasker->saveProgressAtMilestone($task, $taskData, $params)) {
+      if ($tasker->saveProgressAtMilestone($task, $taskData, $params) && count($deleted)) {
         $this->message('Deleted pages: '.implode(', ', $deleted));
         $deleted = array();
       }
@@ -369,13 +363,16 @@ class DataSet extends WireData implements Module {
       }
     } // foreach pages to delete
 
-    $this->message('Deleted pages: '.implode(', ', $deleted));
+    if (count($deleted)) $this->message('Deleted pages: '.implode(', ', $deleted));
 
-    if ($taskData['task_done']) {
-      return 'Done deleting data set entries.';
+    if ($taskData['records_processed'] == $taskData['max_records']) {
+      $taskData['task_done'] = 1;
+      $this->message('Done deleting records.');
+      return true;
     }
 
-    return 'Purge is not finished.';
+    $this->message('Done deleting records.');
+    return true;
   }
 
 
@@ -455,7 +452,11 @@ class DataSet extends WireData implements Module {
    */
   public function createPage(Page $parent, $template, $title, $field_data = array()) {
     if (!is_object($parent) || ($parent instanceof NullPage)) {
-      $this->error("ERROR: error creating new {$template} named {$title} since its parent does not exists.");
+      $this->error("ERROR: error creating new {$template} named '{$title}' since its parent does not exists.");
+      return NULL;
+    }
+    if (!is_string($title) || mb_strlen($title)<2) {
+      $this->error("ERROR: error creating new {$template} named '{$title}' since its title is invalid.");
       return NULL;
     }
     // parent page needs to have an ID, get one by saving it
@@ -510,12 +511,20 @@ class DataSet extends WireData implements Module {
     }
 */
 
+    try {
+      $p->save(); // pages must be saved to be a parent or to be referenced
+    } catch (\Exception $e) {
+      // TODO very long page titles may cause problems while saving the page
+      // "Unable to generate unique name for page 0"
+      $this->error("ERROR: failed to create page '{$title}'.");
+      $this->message($e->getMessage());
+      return NULL;
+    }
     // $this->message("{$parent->title} / {$title} [{$template}] created.", Notice::debug);
-    $p->save(); // pages must be saved to be a parent or to be referenced
 
     // after the page is saved we can download and attach external files and images
     if (count($externals)) foreach ($externals as $field => $value) {
-      $this->message("DEBUG: downloading and adding {$value} to {$field}.");
+      // $this->message("DEBUG: downloading and adding {$value} to {$field}.");
       $p->$field->add($value);
     }
     $p->save();
@@ -532,11 +541,27 @@ class DataSet extends WireData implements Module {
    * Load and return data set or file configuration.
    * 
    * @param $config configuration in YAML form
-   * @returns configuration as associative array
+   * @returns configuration as associative array or false on error
    */
   public function parseConfig($config) {
     // TODO check the configuration
     if (strlen($config)==0) return false; // TODO load default values?
-    return yaml_parse($config);
+
+    // disable decoding PHP code
+    ini_set('yaml.decode_php', 0);
+
+    // YAML warnings do not cause exceptions
+    // Convert them to exceptions using a custom error handler
+    set_error_handler(function($errno, $errstr, $errfile, $errline, array $errcontext) {
+      throw new ErrorException($errstr, 0, $errno, $errfile, $errline);
+    }, E_WARNING);
+    try {
+      $ret = yaml_parse($config);
+    } catch (\Exception $e) {
+      $this->message($e->getMessage());
+      $ret = false;
+    }
+    restore_error_handler();
+    return $ret;
   }
 }
