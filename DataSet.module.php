@@ -55,7 +55,7 @@ class DataSet extends WireData implements Module {
     // Installing conditional hooks
     // Note: PW < 3.0.62 has a bug and needs manual fix for conditional hooks:
     // https://github.com/processwire/processwire-issues/issues/261
-    if (is_array($this->dataset_templates)) foreach ($this->dataset_templates as $t)
+    if (is_array($this->dataset_templates)) foreach ($this->dataset_templates as $t) {
       // hook after page save to import dataset entries
       $this->addHookAfter('Page(template='.$t.')::changed('.$this->sourcefield.')', $this, 'handleSourceChange');
       // hook to check global configuration changes on dataset pages
