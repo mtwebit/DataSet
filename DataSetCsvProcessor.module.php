@@ -109,7 +109,7 @@ class DataSetCsvProcessor extends WireData implements Module {
 
     while ($csv_string=fgets($fd)) {
       // increase the number of processed records and the actual offset counter
-      // TODO are they the same? als offset and records_processed seem are same?
+      // TODO are they the same?
       $taskData['records_processed']++;
       $entrySerial++;
 
@@ -131,11 +131,7 @@ class DataSetCsvProcessor extends WireData implements Module {
       // this also ensures that CSV files with only one column (and no delimiter) can be processed this way
       $csv_data = str_getcsv($entrySerial.$params['input']['delimiter'].$csv_string, $params['input']['delimiter'], $params['input']['enclosure']);
 
-      // TODO sanitize page selector
-      // OLD version for processing the selector
-      // It is buggy since %1$ refers to the 0. index element and it could not sanitize input
-      // $selector = vsprintf($params['pages']['selector'], $csv_data[1..]);
-      $selector = $params['pages']['selector']; // will be processed later
+      $selector = $params['pages']['selector']; // will be altered later
 
       // stores field data read from the input
       $field_data = array();
@@ -171,6 +167,9 @@ class DataSetCsvProcessor extends WireData implements Module {
         }
         // if this field is used in the page selector then replace it with its value
         if (strpos($selector, '@'.$field)) {
+          if (mb_strlen($field_data[$field])>100) {
+            $this->warning("WARNING: the value of selector '{$field}' is too long. Truncating to 100 characters.");
+          }
           $svalue = wire('sanitizer')->selectorValue($field_data[$field]);
           $selector = str_replace('@'.$field, $svalue, $selector);
         }
@@ -181,11 +180,16 @@ class DataSetCsvProcessor extends WireData implements Module {
 
       // create or update the page
       $newPage = $this->modules->DataSet->importPage($dataSetPage, $params['pages']['template'], $selector, $field_data, $file->tags(true));
-
-      if ($newPage instanceof Page) $newPages[] = $newPage->title;
+      
+      if ($newPage === NULL) {
+        $this->error("Failed to import '{$csv_string}'.");
+      } else {
+        if ($newPage instanceof Page) $newPages[] = $newPage->title;
+        // TODO any other case?
+      }
 
       // Report progress and check for events if a milestone is reached
-      if ($tasker->saveProgressAtMilestone($task, $taskData, $params)) {
+      if ($tasker->saveProgressAtMilestone($task, $taskData, $params) && count($newPages)) {
         $this->message('Import successful for '.implode(', ', $newPages));
         $newPages = array();
       }
@@ -202,7 +206,7 @@ class DataSetCsvProcessor extends WireData implements Module {
     fclose($fd);
 
     // print out some info for the user
-    $this->message('Import successful for '.implode(', ', $newPages));
+    if (count($newPages)) $this->message('Import successful for '.implode(', ', $newPages));
 
     return true;
   }
