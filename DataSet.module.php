@@ -287,7 +287,7 @@ class DataSet extends WireData implements Module {
 
 
   /**
-   * Purge the data set by removing all its child nodes
+   * Purge the entire data set by removing all its child nodes
    * 
    * @param $dataSetPage ProcessWire Page object (the data set)
    * @param $taskData task data assoc array
@@ -371,7 +371,6 @@ class DataSet extends WireData implements Module {
       return true;
     }
 
-    $this->message('Done deleting records.');
     return true;
   }
 
