@@ -97,6 +97,13 @@ class DataSetCsvProcessor extends WireData implements Module {
     // skip the header row if needed
     if ($params['input']['header'] == 1) fgets($fd);
 
+    // determine what columns are required
+    if (isset($params['input']['required_fields']) && is_array($params['input']['required_fields'])) {
+      $req_fields = $params['input']['required_fields'];
+    } else {
+      $req_fields = array();
+    }
+
     // check if we need to skip a few records
     if ($taskData['offset'] > 0) {
       $this->message('Skipping '.$taskData['offset'].' entries.', Notice::debug);
@@ -106,6 +113,9 @@ class DataSetCsvProcessor extends WireData implements Module {
       }
       $taskData['offset'] = 0; // clear the old offset, will be set again later on
     }
+
+    // set an initial milestone
+    $taskData['milestone'] = $entrySerial + 20;
 
     while ($csv_string=fgets($fd)) {
       // increase the number of processed records and the actual offset counter
@@ -144,35 +154,53 @@ class DataSetCsvProcessor extends WireData implements Module {
             $this->error("ERROR: column '{$column}' for field '{$field}' not found in the input. Could be a wrong delimiter or malformed input?");
             continue 2; // go to the next record in the input
           }
-          $field_data[$field] = trim($csv_data[$column], "\"'\t\n\r\0\x0B");
+          $value = trim($csv_data[$column], "\"'\t\n\r\0\x0B");
         } else if (is_array($column)) { // a set of columns from the input
-          $mixvalue = '';
+          $value = '';
           foreach ($column as $col) {
-            if (is_string($col)) $mixvalue .= $col; // a string between column data
+            if (is_string($col)) $value .= $col; // a string between column data
             else if (is_numeric($col)) { // a single column
               if (!isset($csv_data[$col])) {
                 $this->error("ERROR: column '{$col}' for field '{$field}' not found in the input. Could be a wrong delimiter or malformed input?");
                 continue 3; // go to the next record in the input
               }
-              $mixvalue .= trim($csv_data[$col], "\"'\t\n\r\0\x0B");
+              $value .= trim($csv_data[$col], "\"'\t\n\r\0\x0B");
             } else {
               $this->error("ERROR: invalid column specifier '{$col}' for field '{$field}'");
               break 3; // stop processing records, the error needs to be fixed
             }
           }
-          $field_data[$field] = $mixvalue;
         } else { // the column is not an integer and not an array
           $this->error("ERROR: invalid column specifier '{$column}' for field '{$field}'");
           break 2; // stop processing records, the error needs to be fixed
         }
+
+        // skip the field if it is empty
+        if (!strlen($value)) continue;
+
+        // store the value
+        $field_data[$field] = $value;
+
         // if this field is used in the page selector then replace it with its value
         if (strpos($selector, '@'.$field)) {
-          if (mb_strlen($field_data[$field])>100) {
+          if (mb_strlen($field_data[$field])>100) {  // a ProcessWire constrain
             $this->warning("WARNING: the value of selector '{$field}' is too long. Truncating to 100 characters.");
           }
           $svalue = wire('sanitizer')->selectorValue($field_data[$field]);
           $selector = str_replace('@'.$field, $svalue, $selector);
         }
+      }
+
+      // check for required fields
+      $not_present=array_diff($req_fields, $field_data);
+      if (count($not_present)) {
+        foreach ($not_present as $field) {
+          $this->error("ERROR: missing value for required field '{$field}' in the input.");
+        }
+        $this->message(var_export($req_fields, true));
+        $this->message(var_export($not_present, true));
+        break;
+        // continue; // go to the next record in the input
       }
 
       $this->message("Data interpreted as ".str_replace("\n", " ", print_r($field_data, true)), Notice::debug);
@@ -191,6 +219,9 @@ class DataSetCsvProcessor extends WireData implements Module {
       // Report progress and check for events if a milestone is reached
       if ($tasker->saveProgressAtMilestone($task, $taskData, $params) && count($newPages)) {
         $this->message('Import successful for '.implode(', ', $newPages));
+        // set the next milestone
+        $taskData['milestone'] = $entrySerial + 20;
+        // clear the new pages array (the have been already reported in the log)
         $newPages = array();
       }
 

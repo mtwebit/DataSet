@@ -343,6 +343,8 @@ class DataSet extends WireData implements Module {
 
     // store a few page names to print out
     $deleted = array();
+    // set an initial milestone
+    $taskData['milestone'] = $taskData['records_processed'] + 50;
 
     $children = $this->pages->findMany($selector);
 
@@ -355,6 +357,9 @@ class DataSet extends WireData implements Module {
       // Report progress and check for events if a milestone is reached
       if ($tasker->saveProgressAtMilestone($task, $taskData, $params) && count($deleted)) {
         $this->message('Deleted pages: '.implode(', ', $deleted));
+        // set a new milestone
+        $taskData['milestone'] = $taskData['records_processed'] + 50;
+        // clear the deleted pages array (the have been already reported in the log)
         $deleted = array();
       }
       if (!$tasker->allowedToExecute($task, $params)) { // reached execution limits

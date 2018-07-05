@@ -144,6 +144,9 @@ class DataSetXmlProcessor extends WireData implements Module {
       $taskData['offset'] = 0; // clear the old offset, will be set again later on
     }
 
+    // set an initial milestone
+    $taskData['milestone'] = $entrySerial + 20;
+
     if ($notFinished) do {
       // increase the actual offset counter
       $entrySerial++;
@@ -211,6 +214,9 @@ class DataSetXmlProcessor extends WireData implements Module {
       // Report progress and check for events if a milestone is reached
       if ($tasker->saveProgressAtMilestone($task, $taskData, $params)) {
         $this->message('Import successful for '.implode(', ', $newPages));
+        // set the next milestone
+        $taskData['milestone'] = $entrySerial + 20;
+        // clear the new pages array (the have been already reported in the log)
         $newPages = array();
       }
 
