@@ -1,18 +1,18 @@
 # DataSet
-ProcessWire modules for importing, manipulating and displaying large data sets.
-
-## Notes
-Use with caution: it is under continuous development. Things may be broken and the API may change at any time.  
-PW 3.0.62 has a bug and needs manual fix for conditional hooks.
-See [this issue](https://github.com/processwire/processwire-issues/issues/261) for a fix or upgrade to the latest dev.
-
-## Purpose
-These modules provides support for importing, storing, manipulating and displaying large number of data entries in ProcessWire.  
-They can handle 50k+ entries with low memory requirements. Imports are run using the [Tasker](https://github.com/mtwebit/Tasker) module.  
+ProcessWire modules for importing, manipulating and displaying large (50k+) data sets.  
 The software was developed for the [Mikes-dictionary] and other Digital Humanities projects.
+
+## Main features
+* import data from CSV and XML sources
+* user configurable input <-> field mappings and dynamic field composition
+* supports downloading external resources (files, images)
+* fairly low memory requirements (uses [Tasker](https://github.com/mtwebit/Tasker) to execute long-running jobs)
 
 ## Docs
 See the wiki.
+
+## Important notice
+This module is under continuous development. Things may be broken and the internal API may change at any time.  
 
 ## License
 The "github-version" of the software is licensed under MPL 2.0.
