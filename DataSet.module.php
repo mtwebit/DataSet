@@ -17,8 +17,9 @@ class DataSet extends WireData implements Module {
   private $redirectUrl = '';
   // file tags
   const TAG_IMPORT='import';  // import data from sources
-  const TAG_UPDATE='update';  // update already existing data
-  const TAG_DELETE='delete';    // delete data found in the source
+  const TAG_MERGE='merge';    // merge new data with already existing data
+  const TAG_OVERWRITE='overwrite'; // merge and overwrite already existing data with new imports
+  const TAG_DELETE='delete';  // delete data found in the source
   const TAG_PURGE='purge';    // purge the data set before import
   const DEF_IMPORT_OPTIONS = '
 name: Default import configuration
@@ -136,7 +137,7 @@ pages:
    */
   public function createTasksOnPageSave($dataSetPage) {
     // check if any file needs to be handled
-    $files = $dataSetPage->{$this->sourcefield}->find('tags*='.self::TAG_IMPORT.'|'.self::TAG_UPDATE.'|'.self::TAG_PURGE.'|'.self::TAG_DELETE);
+    $files = $dataSetPage->{$this->sourcefield}->find('tags*='.self::TAG_IMPORT.'|'.self::TAG_MERGE.'|'.self::TAG_OVERWRITE.'|'.self::TAG_PURGE.'|'.self::TAG_DELETE);
     if ($files->count()==0) return;
 
     $this->message('Data set source has changed. Creating background jobs to check the changes.', Notice::debug);
@@ -162,7 +163,7 @@ pages:
     foreach ($files as $name => $file) {
       $data['file'] = $name;
       $title = 'Process data found in '.$name;
-      if (!$file->hasTag(self::TAG_IMPORT.'|'.self::TAG_UPDATE.'|'.self::TAG_DELETE)) {
+      if (!$file->hasTag(self::TAG_IMPORT.'|'.self::TAG_MERGE.'|'.self::TAG_OVERWRITE.'|'.self::TAG_DELETE)) {
         continue; // no import, no update, no delete - skip this file
       }
       $task = $tasker->createTask(__CLASS__, 'import', $dataSetPage, 'Process data from '.$name, $data);
@@ -225,7 +226,7 @@ pages:
     $task = $params['task'];
 
     // check if we still have the file and its tag
-    $file=$dataSetPage->{$this->sourcefield}->findOne('name='.$taskData['file'].',tags*='.self::TAG_IMPORT.'|'.self::TAG_UPDATE.'|'.self::TAG_DELETE);
+    $file=$dataSetPage->{$this->sourcefield}->findOne('name='.$taskData['file'].',tags*='.self::TAG_IMPORT.'|'.self::TAG_MERGE.'|'.self::TAG_OVERWRITE.'|'.self::TAG_DELETE);
     if ($file==NULL) {
       $this->error("ERROR: input file '".$taskData['file']."' is not present or it has no IMPORT tags on Page '{$dataSetPage->title}'.");
       $this->warning("Moving task '{$task->title}' to the trash.");
@@ -403,8 +404,8 @@ pages:
    * @param $dataSetPage ProcessWire Page object (the data set)
    * @param $template template name
    * @param $selector PW selector to check whether page already exists
-   * @param $fields assoc array of field name => value pairs to be set
-   * @param $tags command options: IMPORT, UPDATE, DELETE old version first (coming from file tags)
+   * @param $field_data assoc array of field name => value pairs to be set
+   * @param $tags command options: IMPORT, MERGE, OVERWRITE, DELETE (file tags)
    * 
    * @returns PW Page object that has been added/updated, NULL otherwise
    */
@@ -442,10 +443,8 @@ pages:
     $dataPage = $dataSetPage->child($selector);
 
     if ($dataPage->id) { // found a page with the same title
-      if (isset($tags[self::TAG_UPDATE])) { // update the existing page
-        // $this->message("Updating page '{$dataPage->title}'[{$dataPage->id}]", Notice::debug);
-        // TODO update fields
-        return $dataPage;
+      if (isset($tags[self::TAG_MERGE]) || isset($tags[self::TAG_OVERWRITE])) {
+        return $this->updatePage($dataPage, $template, $field_data, $tags);
       } else {
         $this->message("WARNING: not updating already existing data in '{$dataPage->title}'.");
         return NULL;
@@ -559,7 +558,7 @@ pages:
    * @param $template the template of the updated page
    * @param $fields assoc array of field name => value pairs to be set
    */
-  public function updatePage(Page $page, $template, $field_data = array()) {
+  public function updatePage(Page $page, $template, $title, $field_data = array(), $tags = array()) {
     if (!is_object($page) || ($page instanceof NullPage)) {
       $this->error("ERROR: error updating page because it does not exists.");
       return false;
@@ -580,18 +579,20 @@ pages:
     }
    $pt = wire('templates')->get($template);
 
+   $this->message("Updating page '{$page->title}'[{$page->id}]", Notice::debug);
+
    foreach ($field_data as $field => $value) {
       if (!$pt->hasField($field)) {
         $this->error("ERROR: template '{$template}' has no field named '{$field}'.");
         return false;
       }
       // TODO handle arrays and special fields like files or images?
-      if ($page->$field && $page->field != $value) {
+      if ($page->$field && $page->field != $value && isset($tags[self::TAG_OVERWRITE])) {
         $this->error("WARNING: overwriting field '{$field}''s old value '{$page->field}' with '{$value}'.");
+        $p->$field = $value;
+      } else {
+        $this->message("WARNING: not updating already existing data on page '{$page->title}' in field '{$field}'.");
       }
-
-      // TODO user configurable update options? (overwrite, merge etc.)
-      $p->$field = $value;
 
       // TODO multi-language support?
     }
