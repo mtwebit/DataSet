@@ -207,13 +207,11 @@ class DataSetCsvProcessor extends WireData implements Module {
       $this->message("Page selector is {$selector}.", Notice::debug);
 
       // create or update the page
+      // it will log error and warning messages
       $newPage = $this->modules->DataSet->importPage($dataSetPage, $params['pages']['template'], $selector, $field_data, $file->tags(true));
       
-      if ($newPage === NULL) {
-        $this->error("Failed to import '{$csv_string}'.");
-      } else {
-        if ($newPage instanceof Page) $newPages[] = $newPage->title;
-        // TODO any other case?
+      if ($newPage !== NULL && $newPage instanceof Page) {
+        $newPages[] = $newPage->title;
       }
 
       // Report progress and check for events if a milestone is reached

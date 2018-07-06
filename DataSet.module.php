@@ -412,7 +412,7 @@ pages:
     $dataSetConfig = $this->parseConfig($dataSetPage->{$this->configfield});
     if ($dataSetConfig===false) {
       $this->error("ERROR: invalid data set configuration on page '{$dataSetPage->title}'.");
-      return false;
+      return NULL;
     }
 
     // check the page selector
@@ -455,6 +455,7 @@ pages:
     if (isset($tags[self::TAG_IMPORT])) { // create a new page if needed
       return $this->createPage($dataSetPage, $template, $field_data['title'], $field_data);
     } else {
+      $this->error("ERROR: not importing '{$title}' because the import tag is not found at the source file.");
       return NULL;
     }
   }
@@ -484,7 +485,7 @@ pages:
       return NULL;
     }
     $p->template = $template;
-    $pt = wire('templates')->get("$template");
+    $pt = wire('templates')->get($template);
     if (!is_object($pt)) {
       $this->error("ERROR: template '{$template}' does not exists.");
       return NULL;
@@ -498,7 +499,7 @@ pages:
     if (count($field_data)) foreach ($field_data as $field => $value) {
       if ($field == 'title') continue;
       if (!$pt->hasField($field)) {
-        $this->error("ERROR: template '{$template}' does not allow field '{$field}'.");
+        $this->error("ERROR: template '{$template}' has no field named '{$field}'.");
         return NULL;
       }
       if ($pt->fields->get($field)->type instanceof FieldtypeFile
@@ -549,6 +550,65 @@ pages:
     return $p;
   }
 
+
+
+  /**
+   * Update a Processwire Page and set its fields.
+   * 
+   * @param $page the parent node reference
+   * @param $template the template of the updated page
+   * @param $fields assoc array of field name => value pairs to be set
+   */
+  public function updatePage(Page $page, $template, $field_data = array()) {
+    if (!is_object($page) || ($page instanceof NullPage)) {
+      $this->error("ERROR: error updating page because it does not exists.");
+      return false;
+    }
+
+    // check if there is anything to update
+    if (!is_array($field_data) || !count($field_data)) return true;
+
+    // check the page title
+    if (!isset($field_data['title']) || mb_strlen($field_data['title'])<2) {
+      $this->error("ERROR: error updating page because its title is invalid.");
+      return false;
+    }
+
+    if ($page->template != $template) {
+      $this->error("ERROR: error updating page because its template does not match.");
+      return false;
+    }
+   $pt = wire('templates')->get($template);
+
+   foreach ($field_data as $field => $value) {
+      if (!$pt->hasField($field)) {
+        $this->error("ERROR: template '{$template}' has no field named '{$field}'.");
+        return false;
+      }
+      // TODO handle arrays and special fields like files or images?
+      if ($page->$field && $page->field != $value) {
+        $this->error("WARNING: overwriting field '{$field}''s old value '{$page->field}' with '{$value}'.");
+      }
+
+      // TODO user configurable update options? (overwrite, merge etc.)
+      $p->$field = $value;
+
+      // TODO multi-language support?
+    }
+
+    try {
+      $p->save(); // pages must be saved to be a parent or to be referenced
+    } catch (\Exception $e) {
+      // TODO very long page titles may cause problems while saving the page
+      // "Unable to generate unique name for page 0"
+      $this->error("ERROR: failed to update page '{$title}'.");
+      $this->message($e->getMessage());
+      return NULL;
+    }
+    // $this->message("{$page->title} [{$template}] updated.", Notice::debug);
+
+    return $p;
+  }
 
 
 /***********************************************************************
