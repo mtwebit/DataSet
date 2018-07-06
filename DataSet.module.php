@@ -20,6 +20,19 @@ class DataSet extends WireData implements Module {
   const TAG_UPDATE='update';  // update already existing data
   const TAG_DELETE='delete';    // delete data found in the source
   const TAG_PURGE='purge';    // purge the data set before import
+  const DEF_IMPORT_OPTIONS = '
+name: Default import configuration
+input:
+  type: csv
+  delimiter: \',\'
+  header: 1
+  enclosure: \'"\'
+fieldmappings:
+  title: 1
+pages:
+  template: basic-page
+  selector: \'title=@title\'
+  ';
 
 /***********************************************************************
  * MODULE SETUP
@@ -237,14 +250,14 @@ class DataSet extends WireData implements Module {
     case 'xml':
       // try to validate the content type when the task starts
       if (!$taskData['records_processed'] && $ctype != 'xml') {
-        $this->warning("NOTICE: content type of {$fileConfig['name']} is not {$fileConfig['input']['type']} but {$ctype}. Processing anyway.");
+        $this->warning("WARNING: content type of {$fileConfig['name']} is not {$fileConfig['input']['type']} but {$ctype}. Processing anyway.");
       }
       $proc = $this->modules->getModule('DataSetXmlProcessor');
       break;
     case 'csv':
       // try to validate the content type when the task starts
       if (!$taskData['records_processed'] && !strpos($ctype, 'csv')) {
-        $this->warning("NOTICE: content type of {$fileConfig['name']} is not {$fileConfig['input']['type']} but {$ctype}. Processing anyway.");
+        $this->warning("WARNING: content type of {$fileConfig['name']} is not {$fileConfig['input']['type']} but {$ctype}. Processing anyway.");
       }
       $proc = $this->modules->getModule('DataSetCsvProcessor');
     // TODO case 'application/json':
@@ -544,12 +557,15 @@ class DataSet extends WireData implements Module {
   /**
    * Load and return data set or file configuration.
    * 
-   * @param $config configuration in YAML form
+   * @param $yconfig configuration in YAML form
    * @returns configuration as associative array or false on error
    */
-  public function parseConfig($config) {
-    // TODO check the configuration
-    if (strlen($config)==0) return false; // TODO load default values?
+  public function parseConfig($yconfig) {
+    $ret = yaml_parse(self::DEF_IMPORT_OPTIONS);
+    $valid_sections = array_keys($ret);
+
+    // return default values if the config is empty
+    if (strlen($yconfig)==0) return $ret;
 
     // disable decoding PHP code
     ini_set('yaml.decode_php', 0);
@@ -560,12 +576,31 @@ class DataSet extends WireData implements Module {
       throw new ErrorException($errstr, 0, $errno, $errfile, $errline);
     }, E_WARNING);
     try {
-      $ret = yaml_parse($config);
+      $config = yaml_parse($yconfig);
     } catch (\Exception $e) {
       $this->message($e->getMessage());
-      $ret = false;
+      restore_error_handler();
+      return false;
     }
+
     restore_error_handler();
+
+    // iterate over the main settings and replace default values
+    foreach ($config as $section => $values) {
+      if (!in_array($section, $valid_sections)) {
+        $this->error("Invalid configuration section '{$section}' found in '{$yconfig}'.");
+        return false;
+      }
+      if (is_array($values)) foreach ($values as $setting => $value) {
+        // TODO validate settings
+        $ret[$section][$setting] = $value;
+      } else {
+        $ret[$section] = $values;
+      }
+    }
+
+    // $this->message("DataSet config '{$yconfig}' was interpreted as ".var_export($ret, true).'.', Notice::debug);
+
     return $ret;
   }
 }
