@@ -128,6 +128,13 @@ class DataSetXmlProcessor extends WireData implements Module {
     // set the import status to not finished
     $notFinished = true;
 
+    // determine what columns are required
+    if (isset($params['input']['required_fields']) && is_array($params['input']['required_fields'])) {
+      $req_fields = $params['input']['required_fields'];
+    } else {
+      $req_fields = array();
+    }
+
     // find the first entry tag
     while ($xml->read() && $xml->localName != $params['input']['delimiter']);
 
@@ -189,17 +196,36 @@ class DataSetXmlProcessor extends WireData implements Module {
         }
         // trim whitespaces from the value
         $value = trim($value, "\"'\t\n\r\0\x0B");
-        // don't allow long titles -> TODO should be configurable
-        if ($field=='title' && mb_strlen($value) > 50) {
+
+        // skip the field if it is empty
+        if (!strlen($value)) continue;
+
+        // don't allow long titles -> TODO should be configurable, currently set to the PW selector strlen limit
+        if ($field=='title' && mb_strlen($value) > 100) {
           $spos = mb_strpos($value, ' ', 50);
           if ($spos < 1) $spos = 70;
           $value = mb_substr($value, 0, $spos);
         }
         $field_data[$field] = $value;
         if (strpos($selector, '@'.$field)) {
+          if (mb_strlen($field_data[$field])>100) {  // a ProcessWire constrain
+            $this->warning("WARNING: the value of selector '{$field}' is too long. Truncating to 100 characters.");
+          }
           $svalue = wire('sanitizer')->selectorValue($value);
           $selector = str_replace('@'.$field, $svalue, $selector);
         }
+      }
+
+      // check for required fields
+      $not_present=array_diff($req_fields, $field_data);
+      if (count($not_present)) {
+        foreach ($not_present as $field) {
+          $this->error("ERROR: missing value for required field '{$field}' in the input.");
+        }
+        $this->message(var_export($req_fields, true));
+        $this->message(var_export($not_present, true));
+        break;
+        // continue; // go to the next record in the input
       }
 
       $this->message("Data interpreted as ".str_replace("\n", " ", print_r($field_data, true)), Notice::debug);
