@@ -118,6 +118,13 @@ class DataSetCsvProcessor extends WireData implements Module {
     $taskData['milestone'] = $entrySerial + 20;
 
     while ($csv_string=fgets($fd)) {
+      // check whether the task is still allowed to execute
+      if (!$tasker->allowedToExecute($task, $params)) { // reached execution limits
+        $taskData['task_done'] = 0;
+        $taskData['offset'] = $entrySerial;
+        break; // the foreach loop
+      }
+
       // increase the number of processed records and the actual offset counter
       // TODO are they the same?
       $taskData['records_processed']++;
@@ -221,13 +228,6 @@ class DataSetCsvProcessor extends WireData implements Module {
         $taskData['milestone'] = $entrySerial + 20;
         // clear the new pages array (the have been already reported in the log)
         $newPages = array();
-      }
-
-      // check whether the task is still allowed to execute
-      if (!$tasker->allowedToExecute($task, $params)) { // reached execution limits
-        $taskData['task_done'] = 0;
-        $taskData['offset'] = $entrySerial;
-        break; // the foreach loop
       }
 
     }

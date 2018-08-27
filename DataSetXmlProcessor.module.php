@@ -155,6 +155,12 @@ class DataSetXmlProcessor extends WireData implements Module {
     $taskData['milestone'] = $entrySerial + 20;
 
     if ($notFinished) do {
+      if (!$tasker->allowedToExecute($task, $params)) {
+        $taskData['offset'] = $entrySerial;
+        $taskData['task_done'] = 0;
+        break; // the do loop
+      }
+
       // increase the actual offset counter
       $entrySerial++;
 
@@ -244,12 +250,6 @@ class DataSetXmlProcessor extends WireData implements Module {
         $taskData['milestone'] = $entrySerial + 20;
         // clear the new pages array (the have been already reported in the log)
         $newPages = array();
-      }
-
-      if (!$tasker->allowedToExecute($task, $params)) { // reached execution limits
-        $taskData['offset'] = $entrySerial;
-        $taskData['task_done'] = 0;
-        break; // the foreach loop
       }
 
     } while ($xml->next($params['input']['delimiter']));
