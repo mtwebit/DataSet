@@ -119,7 +119,7 @@ class DataSetCsvProcessor extends WireData implements Module {
 
     while ($csv_string=fgets($fd)) {
       // check whether the task is still allowed to execute
-      if (!$tasker->allowedToExecute($task, $params)) { // reached execution limits
+      if (!$tasker->allowedToExecute($task, $params)) {
         $taskData['task_done'] = 0;
         $taskData['offset'] = $entrySerial;
         break; // the foreach loop
