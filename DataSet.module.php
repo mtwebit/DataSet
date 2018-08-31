@@ -541,7 +541,7 @@ pages:
 
     // after the page is saved we can download and attach external files and images
     if (count($externals)) foreach ($externals as $field => $value) {
-      // $this->message("DEBUG: downloading and adding {$value} to {$field}.");
+      $this->message("Downloading and adding {$value} to {$field}.", Notice::debug);
       $p->$field->add($value);
     }
     $p->save();
