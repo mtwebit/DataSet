@@ -442,7 +442,7 @@ pages:
 
     $dataPage = $dataSetPage->child($selector);
 
-    if ($dataPage->id) { // found a page with the same title
+    if ($dataPage->id) { // found a page using the selector
       if (isset($tags[self::TAG_MERGE]) || isset($tags[self::TAG_OVERWRITE])) {
         return $this->updatePage($dataPage, $template, $field_data, $tags);
       } else {
@@ -558,24 +558,24 @@ pages:
    * @param $template the template of the updated page
    * @param $fields assoc array of field name => value pairs to be set
    */
-  public function updatePage(Page $page, $template, $title, $field_data = array(), $tags = array()) {
+  public function updatePage(Page $page, $template, $field_data = array(), $tags = array()) {
     if (!is_object($page) || ($page instanceof NullPage)) {
       $this->error("ERROR: error updating page because it does not exists.");
-      return false;
+      return NULL;
     }
 
     // check if there is anything to update
     if (!is_array($field_data) || !count($field_data)) return true;
 
     // check the page title
-    if (!isset($field_data['title']) || mb_strlen($field_data['title'])<2) {
+    if (!is_string($field_data['title']) || mb_strlen($field_data['title'])<2) {
       $this->error("ERROR: error updating page because its title is invalid.");
-      return false;
+      return NULL;
     }
 
     if ($page->template != $template) {
       $this->error("ERROR: error updating page because its template does not match.");
-      return false;
+      return NULL;
     }
    $pt = wire('templates')->get($template);
 
@@ -584,21 +584,33 @@ pages:
    foreach ($field_data as $field => $value) {
       if (!$pt->hasField($field)) {
         $this->error("ERROR: template '{$template}' has no field named '{$field}'.");
-        return false;
+        return NULL;
       }
-      // TODO handle arrays and special fields like files or images?
-      if ($page->$field && $page->field != $value && isset($tags[self::TAG_OVERWRITE])) {
-        $this->error("WARNING: overwriting field '{$field}''s old value '{$page->field}' with '{$value}'.");
-        $p->$field = $value;
+
+      if ($pt->fields->get($field)->type instanceof FieldtypeFile
+          || $pt->fields->get($field)->type instanceof FieldtypeImage) {
+        $empty = count($page->$field) ? false : true;
       } else {
-        $this->message("WARNING: not updating already existing data on page '{$page->title}' in field '{$field}'.");
+        $empty = $page->$field ? false : true;
+      }
+
+
+      // TODO handle arrays and special fields like files or images?
+      if (isset($tags[self::TAG_OVERWRITE])) {
+        $this->message("Overwriting field '{$field}''s old value '{$page->$field}' with '{$value}'.");
+        $page->$field = $value;
+      } if (isset($tags[self::TAG_MERGE]) && $empty) {
+        $this->message("Merging value '{$value}' into empty field '{$field}'.");
+        $page->$field = $value;
+      } else {
+        $this->message("WARNING: not updating field '{$field}'.", Notice::debug);
       }
 
       // TODO multi-language support?
     }
 
     try {
-      $p->save(); // pages must be saved to be a parent or to be referenced
+      $page->save(); // pages must be saved to be a parent or to be referenced
     } catch (\Exception $e) {
       // TODO very long page titles may cause problems while saving the page
       // "Unable to generate unique name for page 0"
@@ -608,7 +620,7 @@ pages:
     }
     // $this->message("{$page->title} [{$template}] updated.", Notice::debug);
 
-    return $p;
+    return $page;
   }
 
 
