@@ -193,8 +193,16 @@ class DataSetCsvProcessor extends WireData implements Module {
           if (mb_strlen($field_data[$field])>100) {  // a ProcessWire constrain
             $this->warning("WARNING: the value of selector '{$field}' is too long. Truncating to 100 characters.");
           }
+          // This removes [ ] and other chars, see https://github.com/processwire/processwire/blob/master/wire/core/Sanitizer.php#L1506
+          // HOWTO fix this?
           $svalue = wire('sanitizer')->selectorValue($field_data[$field]);
           $selector = str_replace('@'.$field, $svalue, $selector);
+          
+          // TODO
+          // if a field value used in the selector is missing then the selector will not work
+          
+          // TODO
+          // rewrite the selector setting as an array of fields to be matched
         }
       }
 

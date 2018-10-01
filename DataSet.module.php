@@ -438,7 +438,7 @@ pages:
                .', template='.$dataSetConfig['pages']['template'].', include=all';
 */
 
-    $this->message("Checking existing content with selector '{$selector}'.", Notice::debug);
+    $this->message("Checking existing content with selector '{$selector}'.");
 
     $dataPage = $dataSetPage->child($selector);
 
