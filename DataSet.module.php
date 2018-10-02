@@ -501,8 +501,34 @@ pages:
         $this->error("ERROR: template '{$template}' has no field named '{$field}'.");
         return NULL;
       }
-      if ($pt->fields->get($field)->type instanceof FieldtypeFile
-          || $pt->fields->get($field)->type instanceof FieldtypeImage) {
+      // get the field config
+      $fconfig = $pt->fields->get($field);
+      if ($fconfig->type instanceof FieldtypePage) {
+        // handle special page reference cases during import
+        $selector = '';
+        if ($fconfig->findPagesSelector) $selector .= $fconfig->findPagesSelector . ", ";
+        if ($fconfig->template_id) $selector .= "templates_id={$fconfig->template_id}, ";
+        if ($fconfig->searchFields) {
+          $sfields = '';
+          foreach (explode(' ', $fconfig->searchFields) as $name) {
+            $name = $this->wire('sanitizer')->fieldName($name);
+            if ($name) $sfields .= ($sfields ? '|' : '') . $name;
+          }
+          if ($sfields) $selector .= $sfields."=".$value.", ";
+        }
+        if ($fconfig->parent_id) {
+          if ($selector='') $selector .= "parent_id={$fconfig->parent_id}, ";
+          else $selector .= "has_parent={$fconfig->parent_id}, ";
+        }
+        $this->message("Page selector @ field {$field}: {$selector}.", Notice::debug);
+        $refpage = $this->pages->findOne($selector);
+        if ($refpage instanceof Page) {
+          $p->$field = $refpage->id;
+        } else {
+          $this->error("WARNING: referenced page not found for field '{$field}' using selector '{$selector}'.");
+        }
+      } elseif ($fconfig->type instanceof FieldtypeFile
+          || $fconfig->type instanceof FieldtypeImage) {
         // We can't add files to pages that are not saved. We'll do this later.
         $externals[$field] = $value;
       } else {
