@@ -490,11 +490,13 @@ pages:
       return NULL;
     }
 
+    $page->of(false); // set output formatting off
+
     $p->parent = $parent;
     $p->title = $title;
 
-    // TODO can we save the page now?
-    $externals = array(); // fields storing external files or images
+    $externals = array(); // fields storing external files or images will be processed later on
+
     if (count($field_data)) foreach ($field_data as $field => $value) {
       if ($field == 'title') continue;
       if (!$pt->hasField($field)) {
@@ -531,6 +533,12 @@ pages:
           || $fconfig->type instanceof FieldtypeImage) {
         // We can't add files to pages that are not saved. We'll do this later.
         $externals[$field] = $value;
+      } elseif (is_numeric($value) && $fconfig->type instanceof FieldtypeOptions) {
+        // if the value is numeric we can't use it as a field value on options fields
+        // See https://processwire.com/api/modules/select-options-fieldtype/#manipulating-options-on-a-page-from-the-api
+        $all_options = $fconfig->type->getOptions($fconfig);
+        $option_id = $all_options->get('value|title='.$value);  // TODO: first for value then for title?
+        $p->$field = $option_id;
       } else {
         $p->$field = $value;
       }
@@ -538,8 +546,6 @@ pages:
 
 // TODO multi-language support for pages?
 /*
-    $p->of(false); // turn of output formatting
-
     //foreach ($this->languages as $lang) {
     $langs = $p->getLanguages();
     if (count($langs)) foreach ($p->getLanguages() as $lang) {
