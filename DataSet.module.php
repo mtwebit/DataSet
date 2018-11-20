@@ -294,7 +294,10 @@ pages:
     if ($taskData['records_processed'] == $taskData['max_records']) {
       $taskData['task_done'] = 1;
       $this->message($taskData['file'].' has been processed.');
-    }
+    } elseif (isset($params['input']['limit']) && $taskData['records_processed'] == $params['input']['limit']) {
+      $taskData['task_done'] = 1;
+      $this->message($taskData['file'].' has been partially processed due to a limit='.$params['input']['limit'].' parameter.');
+    } 
 
     return true;
   }
@@ -454,7 +457,7 @@ pages:
     if (isset($tags[self::TAG_IMPORT])) { // create a new page if needed
       return $this->createPage($dataSetPage, $template, $field_data['title'], $field_data);
     } else {
-      $this->error("ERROR: not importing '{$title}' because the import tag is not found at the source file.");
+      $this->error('ERROR: not importing "'.$field_data['title'].'" because the import tag is not found at the source file.');
       return NULL;
     }
   }
@@ -490,7 +493,8 @@ pages:
       return NULL;
     }
 
-    $page->of(false); // set output formatting off
+    // TODO do we need this here?
+    $p->of(false); // set output formatting off
 
     $p->parent = $parent;
     $p->title = $title;
@@ -503,25 +507,13 @@ pages:
         $this->error("ERROR: template '{$template}' has no field named '{$field}'.");
         return NULL;
       }
+
       // get the field config
       $fconfig = $pt->fields->get($field);
-      if ($fconfig->type instanceof FieldtypePage) {
-        // handle special page reference cases during import
-        $selector = '';
-        if ($fconfig->findPagesSelector) $selector .= $fconfig->findPagesSelector . ", ";
-        if ($fconfig->template_id) $selector .= "templates_id={$fconfig->template_id}, ";
-        if ($fconfig->searchFields) {
-          $sfields = '';
-          foreach (explode(' ', $fconfig->searchFields) as $name) {
-            $name = $this->wire('sanitizer')->fieldName($name);
-            if ($name) $sfields .= ($sfields ? '|' : '') . $name;
-          }
-          if ($sfields) $selector .= $sfields."=".$value.", ";
-        }
-        if ($fconfig->parent_id) {
-          if ($selector='') $selector .= "parent_id={$fconfig->parent_id}, ";
-          else $selector .= "has_parent={$fconfig->parent_id}, ";
-        }
+
+      // and handle various field types
+      if ($fconfig->type instanceof FieldtypePage) {    // Page reference
+        $selector = $this->getPageSelector($fconfig, $value);
         $this->message("Page selector @ field {$field}: {$selector}.", Notice::debug);
         $refpage = $this->pages->findOne($selector);
         if ($refpage instanceof Page) {
@@ -530,15 +522,15 @@ pages:
           $this->error("WARNING: referenced page not found for field '{$field}' using selector '{$selector}'.");
         }
       } elseif ($fconfig->type instanceof FieldtypeFile
-          || $fconfig->type instanceof FieldtypeImage) {
+          || $fconfig->type instanceof FieldtypeImage) {    // Images and files
         // We can't add files to pages that are not saved. We'll do this later.
         $externals[$field] = $value;
-      } elseif (is_numeric($value) && $fconfig->type instanceof FieldtypeOptions) {
+      } elseif (is_numeric($value) && $fconfig->type instanceof FieldtypeOptions) {   // Numeric options
         // if the value is numeric we can't use it as a field value on options fields
         // See https://processwire.com/api/modules/select-options-fieldtype/#manipulating-options-on-a-page-from-the-api
-        $all_options = $fconfig->type->getOptions($fconfig);
-        $option_id = $all_options->get('value|title='.$value);  // TODO: first for value then for title?
-        $p->$field = $option_id;
+        // So... replace $value with an option ID if possible
+        $value = $this->getOptionsFieldValue($fconfig, $value);
+        $p->$field = $value;
       } else {
         $p->$field = $value;
       }
@@ -619,23 +611,47 @@ pages:
         return NULL;
       }
 
-      if ($pt->fields->get($field)->type instanceof FieldtypeFile
-          || $pt->fields->get($field)->type instanceof FieldtypeImage) {
-        $empty = count($page->$field) ? false : true;
+      // get the field config
+      $fconfig = $pt->fields->get($field);
+
+      // and handle various field types
+      if ($fconfig->type instanceof FieldtypePage) {    // Page reference
+        $selector = $this->getPageSelector($fconfig, $value);
+        $this->message("Page selector @ field {$field}: {$selector}.", Notice::debug);
+        $refpage = $this->pages->findOne($selector);
+        if ($refpage instanceof Page) {
+          $value = $refpage->id;
+          $hasValue = $page->$field->has($value);
+        } else {
+          $this->error("WARNING: referenced page not found for field '{$field}' using selector '{$selector}'.");
+          continue; // with the next field
+        }
+      } elseif ($fconfig->type instanceof FieldtypeFile
+          || $fconfig->type instanceof FieldtypeImage) {    // Images and files
+        $hasValue = $page->$field->has($value);
+      } elseif (is_numeric($value) && $fconfig->type instanceof FieldtypeOptions) {   // Numeric options
+        // if the value is numeric we can't use it as a field value on options fields
+        // See https://processwire.com/api/modules/select-options-fieldtype/#manipulating-options-on-a-page-from-the-api
+        // So... replace $value with an option ID if possible
+        $value = $this->getOptionsFieldValue($fconfig, $value);
+        $hasValue = $page->$field->has($value);
       } else {
-        $empty = $page->$field ? false : true;
+        $hasValue = $page->$field ? true : false;
       }
 
+      $this->message("Page selector @ field {$field}: {$selector}.", Notice::debug);
 
-      // TODO handle arrays and special fields like files or images?
       if (isset($tags[self::TAG_OVERWRITE])) {
-        $this->message("Overwriting field '{$field}''s old value '{$page->$field}' with '{$value}'.");
+        $this->message("Overwriting field '{$field}''s old value with '{$value}'.");
         $page->$field = $value;
-      } if (isset($tags[self::TAG_MERGE]) && $empty) {
-        $this->message("Merging value '{$value}' into empty field '{$field}'.");
-        $page->$field = $value;
+      } else if (isset($tags[self::TAG_MERGE]) && !$hasValue) {
+        $this->message("Merging value '{$value}' into field '{$field}'.");
+        if (!$page->$field || $page->$field instanceof NullPage) $page->$field = $value;
+        // TODO this smells like a bug...   how to add the value to the field?
+        elseif ($page->$field instanceof WireArray) $page->$field->add($value);
+        else $page->$field = $value;
       } else {
-        $this->message("WARNING: not updating field '{$field}'.", Notice::debug);
+        $this->message("WARNING: not updating already populated field '{$field}'.", Notice::debug);
       }
 
       // TODO multi-language support?
@@ -708,4 +724,48 @@ pages:
 
     return $ret;
   }
+
+  /**
+   * Get a page reference selector based on the field's configuration
+   * 
+   * @param $fconfig field configuration
+   * @param $value search value
+   * @returns configuration as associative array or false on error
+   */
+  public function getPageSelector($fconfig, $value) {
+    $selectors = array();
+    if ($fconfig->findPagesSelector) $selectors[] = $fconfig->findPagesSelector;
+    if ($fconfig->template_id) $selectors[] = "templates_id={$fconfig->template_id}";
+    if ($fconfig->searchFields) {
+      $sfields = '';
+      foreach (explode(' ', $fconfig->searchFields) as $name) {
+        $name = $this->wire('sanitizer')->fieldName($name);
+        if ($name) $sfields .= ($sfields ? '|' : '') . $name;
+      }
+      if ($sfields) $selectors[] = $sfields."=".$value;
+    }
+    if ($fconfig->parent_id) {
+      if (empty($selectors)) $selectors[] = "parent_id={$fconfig->parent_id}";
+      else $selectors[] = "has_parent={$fconfig->parent_id}";
+    }
+    return implode(', ', $selectors);
+  }
+
+  /**
+   * Get a page reference selector based on the field's configuration
+   * 
+   * @param $fconfig field configuration
+   * @param $value search value
+   * @returns configuration as associative array or false on error
+   */
+  public function getOptionsFieldValue($fconfig, $value) {
+    $all_options = $fconfig->type->getOptions($fconfig);
+    $option_id = $all_options->get('value|title='.$value);  // TODO: first for value then for title?
+    if ($option_id != NULL) {
+      return $option_id;
+    } else {  // option not found by value or title, it must be an ID
+      return $value;
+    }
+  }
+
 }

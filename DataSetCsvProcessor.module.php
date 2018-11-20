@@ -98,6 +98,7 @@ class DataSetCsvProcessor extends WireData implements Module {
     if ($params['input']['header'] == 1) fgets($fd);
 
     // determine what columns are required
+    // TODO this is not tested and may not work
     if (isset($params['input']['required_fields']) && is_array($params['input']['required_fields'])) {
       $req_fields = $params['input']['required_fields'];
     } else {
@@ -122,7 +123,12 @@ class DataSetCsvProcessor extends WireData implements Module {
       if (!$tasker->allowedToExecute($task, $params)) {
         $taskData['task_done'] = 0;
         $taskData['offset'] = $entrySerial;
-        break; // the foreach loop
+        break; // ... the foreach loop
+      }
+
+      // stop importing if we've reached the maximum (e.g. due to a limit)
+      if (isset($params['input']['limit']) && $taskData['records_processed'] >= $params['input']['limit']) {
+        break; // ... the foreach loop if there is a limit
       }
 
       // increase the number of processed records and the actual offset counter
