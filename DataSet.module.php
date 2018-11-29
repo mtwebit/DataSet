@@ -449,15 +449,18 @@ pages:
       if (isset($tags[self::TAG_MERGE]) || isset($tags[self::TAG_OVERWRITE])) {
         return $this->updatePage($dataPage, $template, $field_data, $tags);
       } else {
-        $this->message("WARNING: not updating already existing data in '{$dataPage->title}'.");
+        $this->message("WARNING: MERGE or OVERWIRE not specified so not updating already existing data in '{$dataPage->title}'.");
         return NULL;
       }
     }
 
+    $this->message("WARNING: no content found matching the '{$selector}' selector. Trying to import the data...", Notice::debug);
+
     if (isset($tags[self::TAG_IMPORT])) { // create a new page if needed
       return $this->createPage($dataSetPage, $template, $field_data['title'], $field_data);
     } else {
-      $this->error('ERROR: not importing "'.$field_data['title'].'" because the import tag is not found at the source file.');
+      $this->error('ERROR: not importing '.str_replace("\n", " ", print_r($field_data, true))
+            . ' into "'.$field_data['title'].'" because the import tag is not found at the source file.');
       return NULL;
     }
   }
@@ -617,11 +620,12 @@ pages:
       // and handle various field types
       if ($fconfig->type instanceof FieldtypePage) {    // Page reference
         $selector = $this->getPageSelector($fconfig, $value);
-        $this->message("Page selector @ field {$field}: {$selector}.", Notice::debug);
         $refpage = $this->pages->findOne($selector);
         if ($refpage instanceof Page) {
+          $this->message("Found referenced page '{$refpage->title}' for field '{$field}' using the selector '{$selector}'.", Notice::debug);
           $value = $refpage->id;
-          $hasValue = $page->$field->has($value);
+          $hasValue = $page->$field->has($selector);
+          $this->message("Field '{$field}' " . ($hasValue ? 'already contains' : 'does not contain') . " the value {$value}.", Notice::debug);
         } else {
           $this->error("WARNING: referenced page not found for field '{$field}' using selector '{$selector}'.");
           continue; // with the next field
@@ -639,17 +643,17 @@ pages:
         $hasValue = $page->$field ? true : false;
       }
 
-      $this->message("Page selector @ field {$field}: {$selector}.", Notice::debug);
-
       if (isset($tags[self::TAG_OVERWRITE])) {
         $this->message("Overwriting field '{$field}''s old value with '{$value}'.");
         $page->$field = $value;
       } else if (isset($tags[self::TAG_MERGE]) && !$hasValue) {
-        $this->message("Merging value '{$value}' into field '{$field}'.");
-        if (!$page->$field || $page->$field instanceof NullPage) $page->$field = $value;
-        // TODO this smells like a bug...   how to add the value to the field?
-        elseif ($page->$field instanceof WireArray) $page->$field->add($value);
-        else $page->$field = $value;
+        if ($page->$field instanceof WireArray) {
+          $this->message("Adding new element '{$value}' to field '{$field}'.");
+          $page->$field->add($value);
+        } else {
+          $this->message("Setting field '{$field}' = '{$value}'.");
+          $page->$field = $value;
+        }
       } else {
         $this->message("WARNING: not updating already populated field '{$field}'.", Notice::debug);
       }
