@@ -441,7 +441,7 @@ pages:
                .', template='.$dataSetConfig['pages']['template'].', include=all';
 */
 
-    $this->message("Checking existing content with selector '{$selector}'.");
+    $this->message("Checking existing content with selector '{$selector}'.", Notice::debug);
 
     $dataPage = $dataSetPage->child($selector);
 
@@ -746,6 +746,7 @@ pages:
         $name = $this->wire('sanitizer')->fieldName($name);
         if ($name) $sfields .= ($sfields ? '|' : '') . $name;
       }
+      $value = $this->wire('sanitizer')->selectorValue($value);
       if ($sfields) $selectors[] = $sfields."=".$value;
     }
     if ($fconfig->parent_id) {
