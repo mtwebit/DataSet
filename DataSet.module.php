@@ -624,7 +624,7 @@ pages:
         if ($refpage instanceof Page) {
           $this->message("Found referenced page '{$refpage->title}' for field '{$field}' using the selector '{$selector}'.", Notice::debug);
           $value = $refpage->id;
-          $hasValue = $page->$field->has($selector);
+          $hasValue = ($page->$field ? $page->$field->has($selector) : false);
           $this->message("Field '{$field}' " . ($hasValue ? 'already contains' : 'does not contain') . " the value {$value}.", Notice::debug);
         } else {
           $this->error("WARNING: referenced page not found for field '{$field}' using selector '{$selector}'.");
