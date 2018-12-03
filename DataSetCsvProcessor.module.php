@@ -62,7 +62,7 @@ class DataSetCsvProcessor extends WireData implements Module {
     }
     fclose($fd);
     // subtract the header row if exists
-    if ($params['input']['header'] == 1) $count--;
+    if ($params['input']['header'] != 0) $count -= $params['input']['header'];
     return $count;
   }
 
@@ -94,8 +94,11 @@ class DataSetCsvProcessor extends WireData implements Module {
     // Entry record number from the beginning of the input (offset)
     $entrySerial = 0;
 
-    // skip the header row if needed
-    if ($params['input']['header'] == 1) fgets($fd);
+    // skip header rows if needed
+    if ($params['input']['header'] != 0) {
+      $i = $params['input']['header'];
+      while ($i-- > 0) fgets($fd);
+    }
 
     // determine what columns are required
     // TODO this is not tested and may not work
