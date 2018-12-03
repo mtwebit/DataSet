@@ -174,6 +174,11 @@ class DataSetXmlProcessor extends WireData implements Module {
         continue;
       }
 
+      // stop importing if we've reached the maximum (e.g. due to a limit)
+      if (isset($params['input']['limit']) && $taskData['records_processed'] >= $params['input']['limit']) {
+        break; // ... the foreach loop if there is a limit
+      }
+
       // increase the record counter
       $taskData['records_processed']++;
 
