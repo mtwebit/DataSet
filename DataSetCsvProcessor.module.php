@@ -148,6 +148,7 @@ class DataSetCsvProcessor extends WireData implements Module {
       // this also ensures that CSV files with only one column (and no delimiter) can be processed this way
       $csv_data = str_getcsv($entrySerial.$params['input']['delimiter'].$csv_string, $params['input']['delimiter'], $params['input']['enclosure']);
 
+      $ptemplate = wire('templates')->get($params['pages']['template']);
       $selector = $params['pages']['selector']; // will be altered later
 
       // stores field data read from the input
@@ -196,13 +197,23 @@ class DataSetCsvProcessor extends WireData implements Module {
           // This removes [ ] and other chars, see https://github.com/processwire/processwire/blob/master/wire/core/Sanitizer.php#L1506
           // HOWTO fix this?
           $svalue = wire('sanitizer')->selectorValue($field_data[$field]);
-          $selector = str_replace('@'.$field, $svalue, $selector);
-          
+
           // TODO
           // if a field value used in the selector is missing then the selector will not work
           
           // TODO
           // rewrite the selector setting as an array of fields to be matched
+          
+          // page reference selectors
+          $fconfig = $ptemplate->fields->get($field);
+          if ($fconfig->type instanceof FieldtypePage) {
+            $svalue = wire('modules')->DataSet->getReferredPage($fconfig, $field_data[$field]);
+            if ($svalue === NULL) {
+              $this->warning("WARNING: Referenced page {$value} for field {$field} is not found.");
+              continue;
+            }
+          }
+          $selector = str_replace('@'.$field, $svalue, $selector);
         }
       }
 

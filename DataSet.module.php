@@ -504,24 +504,7 @@ pages:
       // get the field config
       $fconfig = $pt->fields->get($field);
       if ($fconfig->type instanceof FieldtypePage) {
-        // handle special page reference cases during import
-        $selector = '';
-        if ($fconfig->findPagesSelector) $selector .= $fconfig->findPagesSelector . ", ";
-        if ($fconfig->template_id) $selector .= "templates_id={$fconfig->template_id}, ";
-        if ($fconfig->searchFields) {
-          $sfields = '';
-          foreach (explode(' ', $fconfig->searchFields) as $name) {
-            $name = $this->wire('sanitizer')->fieldName($name);
-            if ($name) $sfields .= ($sfields ? '|' : '') . $name;
-          }
-          if ($sfields) $selector .= $sfields."=".$value.", ";
-        }
-        if ($fconfig->parent_id) {
-          if ($selector='') $selector .= "parent_id={$fconfig->parent_id}, ";
-          else $selector .= "has_parent={$fconfig->parent_id}, ";
-        }
-        $this->message("Page selector @ field {$field}: {$selector}.", Notice::debug);
-        $refpage = $this->pages->findOne($selector);
+        $refpage = $this->getReferredPage($fconfig, $value);
         if ($refpage instanceof Page) {
           $p->$field = $refpage->id;
         } else {
@@ -702,4 +685,33 @@ pages:
 
     return $ret;
   }
+
+  /**
+   * Resolve a page reference using field configuration data
+   * 
+   * @param $fconfig field configuration
+   * @param $value field value
+   * @returns a page object or NULL if none found
+   */
+  public function getReferredPage($fconfig, $value) {
+    // handle special page reference cases during import
+    $selector = '';
+    if ($fconfig->findPagesSelector) $selector .= $fconfig->findPagesSelector . ", ";
+    if ($fconfig->template_id) $selector .= "templates_id={$fconfig->template_id}, ";
+    if ($fconfig->searchFields) {
+      $sfields = '';
+      foreach (explode(' ', $fconfig->searchFields) as $name) {
+        $name = $this->wire('sanitizer')->fieldName($name);
+        if ($name) $sfields .= ($sfields ? '|' : '') . $name;
+      }
+      if ($sfields) $selector .= $sfields."=".$this->wire('sanitizer')->selectorValue($value).", ";
+    }
+    if ($fconfig->parent_id) {
+      if ($selector='') $selector .= "parent_id={$fconfig->parent_id}, ";
+      else $selector .= "has_parent={$fconfig->parent_id}, ";
+    }
+    if ($selector=='') $selector="title={$value}";
+    return $this->pages->findOne($selector);
+  }
+
 }
