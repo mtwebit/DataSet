@@ -73,7 +73,7 @@ class DataSetCsvProcessor extends WireData implements Module {
    * @param $dataSetPage ProcessWire Page object (the root of the data set)
    * @param $file filefield entry to process
    * @param $taskData task data assoc array
-   * @param $params array of config parameters like the task object, timeout, tag name of the entry etc.
+   * @param $params array of config parameters like the task object, timeout, template etc.
    * returns false on fatal error
    */
   public function process(Page $dataSetPage, $file, &$taskData, &$params) {
@@ -81,7 +81,13 @@ class DataSetCsvProcessor extends WireData implements Module {
     ini_set("auto_detect_line_endings", true);
     $fd = fopen($file->filename, 'rb');
     if (!$fd) {
-      $this->error("Unable to open {$file->name}.");
+      $this->error("ERROR: unable to open {$file->name}.");
+      return false;
+    }
+
+    $ptemplate = wire('templates')->get($params['pages']['template']);
+    if (!$ptemplate instanceof Template) {
+      $this->error("ERROR: unknown template: {$params['pages']['template']}.");
       return false;
     }
 
@@ -121,6 +127,7 @@ class DataSetCsvProcessor extends WireData implements Module {
     // set an initial milestone
     $taskData['milestone'] = $entrySerial + 20;
 
+// TODO bug: new lines in CSV cells cause this to fail, should be replaced by fgetcsv()
     while ($csv_string=fgets($fd)) {
       // check whether the task is still allowed to execute
       if (!$tasker->allowedToExecute($task, $params)) {
@@ -157,7 +164,6 @@ class DataSetCsvProcessor extends WireData implements Module {
       // this also ensures that CSV files with only one column (and no delimiter) can be processed this way
       $csv_data = str_getcsv($entrySerial.$params['input']['delimiter'].$csv_string, $params['input']['delimiter'], $params['input']['enclosure']);
 
-      $ptemplate = wire('templates')->get($params['pages']['template']);
       $selector = $params['pages']['selector']; // will be altered later
 
       // stores field data read from the input
@@ -215,9 +221,14 @@ class DataSetCsvProcessor extends WireData implements Module {
           
           // page reference selectors
           $fconfig = $ptemplate->fields->get($field);
+          if ($fconfig == NULL) {
+            $this->error("ERROR: unable to retrieve configuration for field {$field}.");
+            break 2; // stop processing records, the error needs to be fixed
+          }
           if ($fconfig->type instanceof FieldtypePage) {
-            $svalue = wire('modules')->DataSet->getReferredPage($fconfig, $field_data[$field]);
-            if ($svalue === NULL) {
+            $pageSelector = wire('modules')->DataSet->getPageSelector($fconfig, $field_data[$field]);
+            $svalue = $this->pages->findOne($pageSelector);
+            if ($svalue === NULL || $svalue instanceof NullPage) {
               $this->warning("WARNING: Referenced page {$value} for field {$field} is not found.");
               continue;
             }
@@ -243,7 +254,7 @@ class DataSetCsvProcessor extends WireData implements Module {
 
       // create or update the page
       // it will log error and warning messages
-      $newPage = $this->modules->DataSet->importPage($dataSetPage, $params['pages']['template'], $selector, $field_data, $file->tags(true));
+      $newPage = $this->modules->DataSet->importPage($dataSetPage, $selector, $field_data, $params);
       
       if ($newPage !== NULL && $newPage instanceof Page) {
         $newPages[] = $newPage->title;

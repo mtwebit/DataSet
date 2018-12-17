@@ -15,7 +15,7 @@ class DataSet extends WireData implements Module {
   // the base URL of the module's admin page
   public $adminUrl; //  = wire('config')->urls->admin.'page/datasets/'
   private $redirectUrl = '';
-  // file tags
+  // file tags TODO remove them
   const TAG_IMPORT='import';  // import data from sources
   const TAG_MERGE='merge';    // merge new data with already existing data
   const TAG_OVERWRITE='overwrite'; // merge and overwrite already existing data with new imports
@@ -70,10 +70,21 @@ pages:
     // Note: PW < 3.0.62 has a bug and needs manual fix for conditional hooks:
     // https://github.com/processwire/processwire-issues/issues/261
     if (is_array($this->dataset_templates)) foreach ($this->dataset_templates as $t) {
+
+// TODO These are old methods, remove them  
       // hook after page save to import dataset entries
       $this->addHookAfter('Page(template='.$t.')::changed('.$this->sourcefield.')', $this, 'handleSourceChange');
       // hook to check global configuration changes on dataset pages
       $this->addHookAfter('Page(template='.$t.')::changed('.$this->configfield.')', $this, 'validateConfigChange');
+
+// TODO Keep the following new methods
+      // hook to add import buttons to the input field for datasets
+      $this->addHookAfter('InputfieldFile(name='.$this->sourcefield.')::renderItem', $this, 'addFileActionButtons');
+      // hook to add purge button to the global dataset options
+      $this->addHookAfter('InputfieldTextarea(name='.$this->configfield.')::render', $this, 'addGlobalActionButtons');
+      // append Javascript functions
+      $this->config->scripts->add($this->config->urls->siteModules . 'DataSet/DataSet.js');
+      $this->config->styles->add($this->config->urls->siteModules . 'DataSet/DataSet.css');
     }
   }
 
@@ -83,7 +94,7 @@ pages:
  * HOOKS
  **********************************************************************/
 
-  /**
+  /** TODO remove
    * Hook that creates a task to process the sources
    * Note: it is called several times when the change occurs.
    */
@@ -99,7 +110,7 @@ pages:
       });
   }
 
-  /**
+  /** TODO remove
    * Hook that validates configuration changes
    */
   public function validateConfigChange(HookEvent $event) {
@@ -112,7 +123,7 @@ pages:
 
     $field->message("Field '{$field->name}' changed on '{$page->title}'.", Notice::debug);
 
-    if (strlen($field->value)==0) return;
+    if (strlen($field->value)<3) return;
 
     $dataSetConfig = $this->parseConfig($field->value);
     if (false === $dataSetConfig) {
@@ -126,11 +137,86 @@ pages:
   }
 
 
+  /**
+   * Hook that adds buttons and handling functions to dataset source files
+   * Note: it is called several times when the change occurs.
+   */
+  public function addFileActionButtons(HookEvent $event) {
+    $field = $event->object;
+    $pagefile = $event->arguments('pagefile');
+    $id = $event->arguments('id');
+
+    // can't perform any actions if the config is empty
+    if (strlen($pagefile->description) < 3) {
+      $event->return .= '<div>DataSet config is missing.</div>';
+      return;
+    }
+
+    // parse the config
+    $fileConfig = $this->parseConfig($pagefile->description);
+    if (!$fileConfig) {
+      $event->return .= '<div>DataSet config is invalid.</div>';
+      return;
+    }
+
+    $tasker = wire('modules')->get('Tasker');
+    $taskTitle = 'Import '.$fileConfig['name']." from {$pagefile->name} on page {$pagefile->page->title}";
+    $tasks = $tasker->getTasks('title='.$taskTitle);
+    if (!count($tasks)) $event->return .= '
+    <ul class="actions DataSetActions" id="dataset_file_'.$id.'" style="display: inline !important;">DataSet
+      <li style="display: inline !important;">
+        <span><a onclick="DataSet(\'import\', \''.$pagefile->page->id.'\', \''.htmlentities($taskTitle).'\', \''.$pagefile->filename.'\', \''.$id.'\')">Import</a>
+         this file</span>
+      </li>
+      <div></div>
+    </ul>';
+    else $event->return .= '
+      '.wire('modules')->get('TaskerAdmin')->renderTaskList('title='.$taskTitle, '', ' target="_blank"');
+  }
+
+  /**
+   * Hook that adds buttons and handling functions to the global dataset config (if it is not empty)
+   * Note: it is called several times when the change occurs.
+   */
+  public function addGlobalActionButtons(HookEvent $event) {
+    $field = $event->object;
+
+    if ($field->hasPage == null) return;
+
+    // can't perform any actions if the config is empty
+    if (strlen($field->value) < 3) {
+      $event->return .= '<div>DataSet config is missing.</div>';
+      return;
+    }
+
+    // parse the config
+    $dsConfig = $this->parseConfig($field->value);
+    if (!$dsConfig) {
+      $event->return .= '<div>DataSet config is invalid.</div>';
+      return;
+    }
+
+    $tasker = wire('modules')->get('Tasker');
+    $taskTitle = "Purge dataset on page {$field->hasPage->title}";
+    $tasks = $tasker->getTasks('title='.$taskTitle);
+    if (!count($tasks)) $event->return .= '
+    <ul class="actions DataSetActions" id="dataset_file_all" style="display: inline !important;">DataSet
+      <li style="display: inline !important;">
+        <span><a onclick="DataSet(\'purge\', \''.$field->hasPage->id.'\', \''.$taskTitle.'\', \'all files\', \'all\')">Purge</a>
+        (DANGER: All child nodes with the above template will be removed!)</span>
+      </li>
+      <div></div>
+    </ul>';
+    else $event->return .= '
+      '.wire('modules')->get('TaskerAdmin')->renderTaskList('title='.$taskTitle, '', ' target="_blank"');
+  }
+
+
 /***********************************************************************
  * TASK MANAGEMENT
  **********************************************************************/
 
-  /**
+  /** TODO remove
    * Create necessary tasks when the page is ready to be saved
    * 
    * @param $dataSetPage ProcessWire Page object
@@ -187,7 +273,7 @@ pages:
     return;
   }
 
-  /**
+  /** TODO remove
    * Hook that redirects the user to the tasker admin page
    */
   public function runDataSetTasks(HookEvent $event) {
@@ -206,7 +292,7 @@ pages:
  **********************************************************************/
 
   /**
-   * Import a data set - a Tasker task
+   * Import a data set file - a Tasker task
    * 
    * @param $dataSetPage ProcessWire Page object (the root of the data set)
    * @param $taskData task data assoc array
@@ -215,6 +301,98 @@ pages:
    * The method also alters elements of the $taskData array.
    */
   public function import($dataSetPage, &$taskData, $params) {
+    // get a reference to Tasker and the task
+    $tasker = wire('modules')->get('Tasker');
+    $task = $params['task'];
+
+    // check if we still have the file
+    $file=$dataSetPage->{$this->sourcefield}->findOne('filename='.$taskData['file']);
+    if ($file==NULL) {
+      $this->error("ERROR: input file '".$taskData['file']."' is no longer present on Page '{$dataSetPage->title}'.");
+      $this->warning("Moving task '{$task->title}' to the trash.");
+      $task->trash();
+      return false;
+    }
+
+    // process the file configuration stored in the description field
+    $fileConfig = $this->parseConfig($file->description);
+    // and add it to the parameter set
+    $params['input'] = $fileConfig['input'];
+    $params['pages'] = $fileConfig['pages'];
+    $params['fieldmappings'] = $fileConfig['fieldmappings'];
+
+    $ctype = mime_content_type($file->filename);
+
+    // select the appropriate input processor
+    // They should support two methods:
+    // * $proc->count($resource, $params) - returns the maximum number of processable records
+    // * $proc->process($page, $resource, $taskData, $params) - process the input resource
+    switch($fileConfig['input']['type']) {
+    case 'xml':
+      // try to validate the content type when the task starts
+      if (!$taskData['records_processed'] && $ctype != 'xml') {
+        $this->warning("WARNING: content type of {$fileConfig['name']} is not {$fileConfig['input']['type']} but {$ctype}. Processing anyway.");
+      }
+      $proc = $this->modules->getModule('DataSetXmlProcessor');
+      break;
+    case 'csv':
+      // try to validate the content type when the task starts
+      if (!$taskData['records_processed'] && !strpos($ctype, 'csv')) {
+        $this->warning("WARNING: content type of {$fileConfig['name']} is not {$fileConfig['input']['type']} but {$ctype}. Processing anyway.");
+      }
+      $proc = $this->modules->getModule('DataSetCsvProcessor');
+    // TODO case 'application/json':
+    // TODO case 'application/sql':
+       break;
+    default:
+      $this->error("ERROR: content type {$fileConfig['input']['type']} ({$ctype}) is not supported.");
+      return false;
+    }
+
+    // initialize task data if this is the first invocation
+    if ($taskData['records_processed'] == 0) {
+      // estimate the number of processable records
+      $taskData['max_records'] = $proc->countRecords($file, $params);
+      $taskData['records_processed'] = 0;
+      $taskData['task_done'] = 0;
+      $taskData['offset'] = 0;    // file offset
+    }
+
+    if ($taskData['max_records'] == 0) { // empty file?
+      $taskData['task_done'] = 1;
+      $this->message('Import is done (input is empty).');
+      return true;
+    }
+
+    $this->message("Processing file {$file->name}.", Notice::debug);
+
+    // import the data set from the file using the appropriate input processor
+    $ret = $proc->process($dataSetPage, $file, $taskData, $params);
+    if ($ret === false) return false;
+
+    // check if the file has been only partially processed (e.g. due to max exec time is reached)
+    if ($taskData['records_processed'] == $taskData['max_records']) {
+      $taskData['task_done'] = 1;
+      $this->message($taskData['file'].' has been processed.');
+    } elseif (isset($params['input']['limit']) && $taskData['records_processed'] == $params['input']['limit']) {
+      $taskData['task_done'] = 1;
+      $this->message($taskData['file'].' has been partially processed due to a limit='.$params['input']['limit'].' parameter.');
+    } 
+
+    return true;
+  }
+
+
+  /** TODO old version, remove
+   * Import a data set - a Tasker task
+   * 
+   * @param $dataSetPage ProcessWire Page object (the root of the data set)
+   * @param $taskData task data assoc array
+   * @param $params runtime paramteres, e.g. timeout, dryrun, estimation and task object
+   * @returns false on error, a result message on success
+   * The method also alters elements of the $taskData array.
+   */
+  public function importOLD($dataSetPage, &$taskData, $params) {
     $dataSetConfig = $this->parseConfig($dataSetPage->{$this->configfield});
     if ($dataSetConfig===false) {
       $this->error("ERROR: invalid data set configuration on page '{$dataSetPage->title}'.");
@@ -302,7 +480,6 @@ pages:
     return true;
   }
 
-
   /**
    * Purge the entire data set by removing all its child nodes
    * 
@@ -312,27 +489,18 @@ pages:
    * @returns false on error, a result message on success
    */
   public function purge($dataSetPage, &$taskData, $params) {
-    /* remove the global config?
     $dataSetConfig = $this->parseConfig($dataSetPage->{$this->configfield});
     if ($dataSetConfig===false) {
       $this->error("ERROR: invalid data set configuration on page '{$dataSetPage->title}'.");
       return false;
-    }*/
-
-    // determine what should be purged
-    $files = $dataSetPage->{$this->sourcefield}->find('tags*='.self::TAG_PURGE);
-    $templates = array();
-    foreach ($files as $file) if ($file->hasTag(self::TAG_PURGE)) {
-      $fileConfig = $this->parseConfig($file->description);
-      $templates[] = $fileConfig['pages']['template'];
     }
-    if (!count($templates)) {
+    if (!isset($dataSetConfig['pages']['template'])) {
       $taskData['task_done'] = 1;
       $this->message('Nothing to purge.');
       return true;
     }
 
-    $selector = 'parent='.$dataSetPage->id.',template='.implode('|', $templates).',include=all';
+    $selector = 'parent='.$dataSetPage->id.',template='.$dataSetConfig['pages']['template'].',include=all';
     $this->message("Purging '{$dataSetPage->title}' using selector '{$selector}'.", Notice::debug);
 
     // calculate the task's actual size
@@ -405,20 +573,13 @@ pages:
    * Import a data page from a source and store its data in the specified field
    * 
    * @param $dataSetPage ProcessWire Page object (the data set)
-   * @param $template template name
    * @param $selector PW selector to check whether page already exists
    * @param $field_data assoc array of field name => value pairs to be set
-   * @param $tags command options: IMPORT, MERGE, OVERWRITE, DELETE (file tags)
+   * @param $params array of config parameters like the task object, timeout, tag name of the entry etc.
    * 
    * @returns PW Page object that has been added/updated, NULL otherwise
    */
-  public function importPage(Page $dataSetPage, $template, $selector, $field_data, $tags = array()) {
-    $dataSetConfig = $this->parseConfig($dataSetPage->{$this->configfield});
-    if ($dataSetConfig===false) {
-      $this->error("ERROR: invalid data set configuration on page '{$dataSetPage->title}'.");
-      return NULL;
-    }
-
+  public function importPage(Page $dataSetPage, $selector, $field_data, &$params) {
     // check the page selector
     if (strlen($selector)<2 || !strpos($selector, '=')) {
       $this->error("ERROR: invalid page selector '{$selector}' found in the input.");
@@ -446,8 +607,8 @@ pages:
     $dataPage = $dataSetPage->child($selector);
 
     if ($dataPage->id) { // found a page using the selector
-      if (isset($tags[self::TAG_MERGE]) || isset($tags[self::TAG_OVERWRITE])) {
-        return $this->updatePage($dataPage, $template, $field_data, $tags);
+      if (isset($params['pages']['merge']) || isset($params['pages']['overwrite'])) {
+        return $this->updatePage($dataPage, $params['pages']['template'], $field_data, isset($params['pages']['overwrite']));
       } else {
         $this->message("WARNING: MERGE or OVERWIRE not specified so not updating already existing data in '{$dataPage->title}'.");
         return NULL;
@@ -456,11 +617,11 @@ pages:
 
     $this->message("WARNING: no content found matching the '{$selector}' selector. Trying to import the data...", Notice::debug);
 
-    if (isset($tags[self::TAG_IMPORT])) { // create a new page if needed
-      return $this->createPage($dataSetPage, $template, $field_data['title'], $field_data);
+    if (!isset($params['pages']['skip_new'])) { // create a new page if needed
+      return $this->createPage($dataSetPage, $params['pages']['template'], $field_data['title'], $field_data);
     } else {
       $this->error('ERROR: not importing '.str_replace("\n", " ", print_r($field_data, true))
-            . ' into "'.$field_data['title'].'" because the import tag is not found at the source file.');
+            . ' into "'.$field_data['title'].'" because skip_new is specified.');
       return NULL;
     }
   }
@@ -583,9 +744,10 @@ pages:
    * 
    * @param $page the parent node reference
    * @param $template the template of the updated page
-   * @param $fields assoc array of field name => value pairs to be set
+   * @param $field_data assoc array of field name => value pairs to be set
+   * @param $overwrite - overwrite existing data?
    */
-  public function updatePage(Page $page, $template, $field_data = array(), $tags = array()) {
+  public function updatePage(Page $page, $template, $field_data = array(), $overwrite = false) {
     if (!is_object($page) || ($page instanceof NullPage)) {
       $this->error("ERROR: error updating page because it does not exists.");
       return NULL;
@@ -643,12 +805,12 @@ pages:
         $hasValue = $page->$field ? true : false;
       }
 
-      if (isset($tags[self::TAG_OVERWRITE])) {
+      if ($overwrite) {
         $this->message("Overwriting field '{$field}''s old value with '{$value}'.");
         $page->$field = $value;
-      } else if (isset($tags[self::TAG_MERGE]) && !$hasValue) {
+      } else if (!$hasValue) {
         if ($page->$field instanceof WireArray) {
-          $this->message("Adding new element '{$value}' to field '{$field}'.");
+          $this->message("Adding new value '{$value}' to field '{$field}'.");
           $page->$field->add($value);
         } else {
           $this->message("Setting field '{$field}' = '{$value}'.");
@@ -718,9 +880,9 @@ pages:
       }
       if (is_array($values)) foreach ($values as $setting => $value) {
         // TODO validate settings
-        $ret[$section][$setting] = $value;
+        $ret[$section][$setting] = $this->wire('sanitizer')->text($value);
       } else {
-        $ret[$section] = $values;
+        $ret[$section] = $this->wire('sanitizer')->text($values);
       }
     }
 

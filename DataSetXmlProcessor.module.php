@@ -90,7 +90,7 @@ class DataSetXmlProcessor extends WireData implements Module {
    * @param $dataSetPage ProcessWire Page object (the root of the data set)
    * @param $file filefield entry to process
    * @param $taskData task data assoc array
-   * @param $params array of config parameters like the task object, timeout, tag name of the entry etc.
+   * @param $params array of config parameters like the task object, timeout, tag name of the entry, template etc.
    * returns false on fatal error
    */
   public function process(Page $dataSetPage, $file, &$taskData, &$params) {
@@ -243,7 +243,7 @@ class DataSetXmlProcessor extends WireData implements Module {
       $this->message("Page selector is {$selector}.", Notice::debug);
 
       // create or update the page
-      $newPage = $this->modules->DataSet->importPage($dataSetPage, $params['pages']['template'], $selector, $field_data, $file->tags(true));
+      $newPage = $this->modules->DataSet->importPage($dataSetPage, $selector, $field_data, $params);
 
       if ($newPage instanceof Page) $newPages[] = $newPage->title;
 
