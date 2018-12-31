@@ -99,6 +99,16 @@ class DataSetCsvProcessor extends WireData implements Module {
     $newPageCounter = 0; $newPages = array();
     // Entry record number from the beginning of the input (offset)
     $entrySerial = 0;
+    // set the import status to not finished
+    $notFinished = true;
+
+    // check and set encoding
+    if (isset($params['input']['encoding'])) {
+      if (!setlocale(LC_CTYPE, $params['input']['encoding'])) {
+        $this->error("ERROR: locale {$params['input']['encoding']} is not supported by your system.");
+        return false;
+      }
+    }
 
     // skip header rows if needed
     if ($params['input']['header'] != 0) {
@@ -114,11 +124,26 @@ class DataSetCsvProcessor extends WireData implements Module {
       $req_fields = array();
     }
 
+    // set default values for field data
+    if (isset($params['field_data_defaults']) && is_array($params['field_data_defaults'])) {
+      $field_data_defaults = $params['field_data_defaults'];
+    } else {
+      $field_data_defaults = array();
+    }
+
+    // set default values for CSV columns
+    if (isset($params['csv_data_defaults']) && is_array($params['csv_data_defaults'])) {
+      $csv_data_defaults = $params['csv_data_defaults'];
+    } else {
+      $csv_data_defaults = array();
+    }
+
     // check if we need to skip a few records
     if ($taskData['offset'] > 0) {
       $this->message('Skipping '.$taskData['offset'].' entries.', Notice::debug);
-      while (!feof($fd)) {
-        fgets($fd);
+      while (!($notFinished = fgetcsv($fd, $params['input']['max_line_length'],
+                          $params['input']['delimiter'],
+                          $params['input']['enclosure']))) {
         if (++$entrySerial == $taskData['offset']) break;
       }
       $taskData['offset'] = 0; // clear the old offset, will be set again later on
@@ -127,74 +152,91 @@ class DataSetCsvProcessor extends WireData implements Module {
     // set an initial milestone
     $taskData['milestone'] = $entrySerial + 20;
 
-// TODO bug: new lines in CSV cells cause this to fail, should be replaced by fgetcsv()
-    while ($csv_string=fgets($fd)) {
-      // check whether the task is still allowed to execute
+//
+// The MAIN data import loop (if we still have data)
+//
+    if ($notFinished) do {
       if (!$tasker->allowedToExecute($task, $params)) {
-        $taskData['task_done'] = 0;
         $taskData['offset'] = $entrySerial;
-        break; // ... the foreach loop
+        $taskData['task_done'] = 0;
+        break; // ... the loop
       }
 
       // stop importing if we've reached the maximum (e.g. due to a limit)
       if (isset($params['input']['limit']) && $taskData['records_processed'] >= $params['input']['limit']) {
-        break; // ... the foreach loop if there is a limit
+        break; // ... the loop
       }
+
+      // This ensures that new lines in fields are processed correctly
+      $csv_data = fgetcsv($fd, $params['input']['max_line_length'],
+                          $params['input']['delimiter'],
+                          $params['input']['enclosure']);
+
+      if ($csv_data === FALSE) {
+        break; // ... the loop as there is no more data
+      }
+
+      if (count($csv_data) < 2 && count($params['fieldmappings']) > 1) {
+        $this->error('Too few columns found. Could be a wrong delimiter or malformed input?');
+        $this->message('Input record: '.var_export($csv_data, true));
+        break;
+      }
+
+      // add a serial number to the beginning of the record
+      // it will get index 0 in the $csv_data array
+      // this also ensures that CSV files with only one column (and no delimiter) can be processed this way
+      $csv_data = array_merge(array(0 => $entrySerial), $csv_data);
+
+      $this->message('Processing input record: '.var_export($csv_data, true), Notice::debug);
+
+      // use default values
+      $csv_data = array_replace($csv_data_defaults, $csv_data);
 
       // increase the number of processed records and the actual offset counter
       // TODO are they the same?
       $taskData['records_processed']++;
       $entrySerial++;
 
-      // read and partially process the CSV data
-      if (isset($params['input']['encoding'])) {
-        $csv_string = iconv($params['input']['encoding'], 'utf-8', $csv_string);
-        if ($csv_string === FALSE) {
-          $this->error("ERROR: invalid encoding '{$params['input']['encoding']}'.");
-          break;
-        }
-      }
-
-      // TODO csv input and field data will be trimmed. Provide an option for this.
-      $csv_string = trim($csv_string);
-      $this->message("Processing input record: {$csv_string}.", Notice::debug);
-
-      // add a serial number to the beginning of the record
-      // it will get index 0 in the $csv_data array
-      // this also ensures that CSV files with only one column (and no delimiter) can be processed this way
-      $csv_data = str_getcsv($entrySerial.$params['input']['delimiter'].$csv_string, $params['input']['delimiter'], $params['input']['enclosure']);
+      $this->message('Input record after defaults merged: '.var_export($csv_data, true), Notice::debug);
 
       $selector = $params['pages']['selector']; // will be altered later
 
       // stores field data read from the input
-      $field_data = array();
+      $field_data = $field_data_defaults;
   
       // transfer input data to a field array
       // TODO sanitize user input
       foreach ($params['fieldmappings'] as $field => $column) {
-        if (is_numeric($column)) { // a single column from the input
-          if (!isset($csv_data[$column])) {
-            $this->error("ERROR: column '{$column}' for field '{$field}' not found in the input. Could be a wrong delimiter or malformed input?");
+
+        if (is_numeric($column)) {
+          // if the column is an integer then use a single column from the input
+          if (!isset($csv_data[$column]) && !isset($field_data_defaults[$column])) {
+            // if the column does not present and there is no default field value then dump an error a skip the record
+            $this->error("ERROR: column '{$column}' for field '{$field}' is not found in the input and no default value is set.");
             continue 2; // go to the next record in the input
           }
           $value = trim($csv_data[$column], "\"'\t\n\r\0\x0B");
-        } else if (is_array($column)) { // a set of columns from the input
+
+        } elseif (is_array($column)) { // a set of columns from the input
+          // if the column is an array then its elements can be column IDs and strings
+          // compose the value from several columns and glue strings
           $value = '';
           foreach ($column as $col) {
-            if (is_string($col)) $value .= $col; // a string between column data
-            else if (is_numeric($col)) { // a single column
-              if (!isset($csv_data[$col])) {
-                $this->error("ERROR: column '{$col}' for field '{$field}' not found in the input. Could be a wrong delimiter or malformed input?");
+            if (is_string($col)) $value .= $col; // a glue string between column values
+            else if (is_numeric($col)) {  // a column ID, get its data
+              if (!isset($csv_data[$col])) {  // empty input data and no defaults
+                $this->error("ERROR: column '{$col}' for field '{$field}' not found in the input and no default value has been set for that CSV column.");
                 continue 3; // go to the next record in the input
               }
+              // append the column's value
               $value .= trim($csv_data[$col], "\"'\t\n\r\0\x0B");
             } else {
-              $this->error("ERROR: invalid column specifier '{$col}' for field '{$field}'");
+              $this->error("ERROR: invalid column specifier '{$col}' used in composing a value for field '{$field}'");
               break 3; // stop processing records, the error needs to be fixed
             }
           }
         } else { // the column is not an integer and not an array
-          $this->error("ERROR: invalid column specifier '{$column}' for field '{$field}'");
+          $this->error("ERROR: invalid column specifier '{$column}' given for field '{$field}'.");
           break 2; // stop processing records, the error needs to be fixed
         }
 
@@ -209,8 +251,9 @@ class DataSetCsvProcessor extends WireData implements Module {
           if (mb_strlen($field_data[$field])>100) {  // a ProcessWire constrain
             $this->warning("WARNING: the value of selector '{$field}' is too long. Truncating to 100 characters.");
           }
-          // This removes [ ] and other chars, see https://github.com/processwire/processwire/blob/master/wire/core/Sanitizer.php#L1506
+          // TODO This removes [ ] and other chars, see https://github.com/processwire/processwire/blob/master/wire/core/Sanitizer.php#L1506
           // HOWTO fix this?
+          // TODO This may encounter encoding problems. How to handle them?
           $svalue = wire('sanitizer')->selectorValue($field_data[$field]);
 
           // TODO
@@ -269,7 +312,10 @@ class DataSetCsvProcessor extends WireData implements Module {
         $newPages = array();
       }
 
-    }
+    } while (true);
+//
+// END of the MAIN data import loop (if we still have data)
+//
 
     fclose($fd);
 
