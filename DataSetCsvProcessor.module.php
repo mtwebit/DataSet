@@ -176,8 +176,14 @@ class DataSetCsvProcessor extends WireData implements Module {
         break; // ... the loop as there is no more data
       }
 
+      // check encoding
+      if (!mb_check_encoding(implode(' ', $csv_data))) {
+        $this->error('ERROR: wrong character encoding in '.var_export($csv_data, true));
+        break;
+      }
+
       if (count($csv_data) < 2 && count($params['fieldmappings']) > 1) {
-        $this->error('Too few columns found. Could be a wrong delimiter or malformed input?');
+        $this->error('ERROR: too few columns found. Could be a wrong delimiter or malformed input?');
         $this->message('Input record: '.var_export($csv_data, true));
         break;
       }
@@ -301,6 +307,8 @@ class DataSetCsvProcessor extends WireData implements Module {
       
       if ($newPage !== NULL && $newPage instanceof Page) {
         $newPages[] = $newPage->title;
+      } else {
+        $this->error("ERROR: could not import the record '".var_export($csv_data, true)."'");
       }
 
       // Report progress and check for events if a milestone is reached

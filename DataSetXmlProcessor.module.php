@@ -211,7 +211,7 @@ class DataSetXmlProcessor extends WireData implements Module {
         } else {
           $xnodes = $xml_data->xpath($xselect);
           if (!count($xnodes)) {
-            $this->error("ERROR: XPath expression '{$xselect}' has no match in '{$xml_string}'. Skipping the record.");
+            $this->error("ERROR: XPath expression '{$xselect}' has no match in '".htmlentities($xml_string)."'. Skipping the record.");
             continue 2; // go to the next record
           }
           $value = (string) $xnodes[0]; // TODO multiple values?
@@ -256,7 +256,11 @@ class DataSetXmlProcessor extends WireData implements Module {
       // create or update the page
       $newPage = $this->modules->DataSet->importPage($dataSetPage, $selector, $field_data, $params);
 
-      if ($newPage instanceof Page) $newPages[] = $newPage->title;
+      if ($newPage instanceof Page) {
+        $newPages[] = $newPage->title;
+      } else {
+        $this->error("ERROR: could not import the record '".htmlentities($xml_string)."'");
+      }
 
 
       // Report progress and check for events if a milestone is reached
