@@ -152,6 +152,9 @@ class DataSetCsvProcessor extends WireData implements Module {
     // set an initial milestone
     $taskData['milestone'] = $entrySerial + 20;
 
+
+// TODO rethink return status
+
 //
 // The MAIN data import loop (if we still have data)
 //
@@ -176,15 +179,19 @@ class DataSetCsvProcessor extends WireData implements Module {
         break; // ... the loop as there is no more data
       }
 
+      // increase the number of processed records and the actual offset counter
+      // TODO are they the same?
+      $taskData['records_processed']++;
+      $entrySerial++;
+
       // check encoding
       if (!mb_check_encoding(implode(' ', $csv_data))) {
-        $this->error('ERROR: wrong character encoding in '.var_export($csv_data, true));
+        $this->error('ERROR: wrong character encoding in '.implode($params['input']['delimiter'], $csv_data));
         break;
       }
 
       if (count($csv_data) < 2 && count($params['fieldmappings']) > 1) {
-        $this->error('ERROR: too few columns found. Could be a wrong delimiter or malformed input?');
-        $this->message('Input record: '.var_export($csv_data, true));
+        $this->error('ERROR: too few columns found. Could be a wrong delimiter or malformed input: '.implode($params['input']['delimiter'], $csv_data));
         break;
       }
 
@@ -193,17 +200,20 @@ class DataSetCsvProcessor extends WireData implements Module {
       // this also ensures that CSV files with only one column (and no delimiter) can be processed this way
       $csv_data = array_merge(array(0 => $entrySerial), $csv_data);
 
-      $this->message('Processing input record: '.var_export($csv_data, true), Notice::debug);
+      // check for required fields
+      foreach ($req_fields as $column) {
+        if (!isset($csv_data[$column]) || empty($csv_data[$column])) {
+          $this->error("ERROR: missing required column {$column} in the input: ".implode($params['input']['delimiter'], $csv_data));
+          continue 2; // go to the next record in the input
+        }
+      }
+
+      $this->message('Processing input record: '.implode($params['input']['delimiter'], $csv_data), Notice::debug);
 
       // use default values
       $csv_data = array_replace($csv_data_defaults, $csv_data);
 
-      // increase the number of processed records and the actual offset counter
-      // TODO are they the same?
-      $taskData['records_processed']++;
-      $entrySerial++;
-
-      $this->message('Input record after defaults merged: '.var_export($csv_data, true), Notice::debug);
+      $this->message('Input record after defaults merged: '.implode($params['input']['delimiter'], $csv_data), Notice::debug);
 
       $selector = $params['pages']['selector']; // will be altered later
 
@@ -287,16 +297,17 @@ class DataSetCsvProcessor extends WireData implements Module {
       }
 
       // check for required fields
+      /* TODO not supported ATM
       $not_present=array_diff($req_fields, $field_data);
       if (count($not_present)) {
         foreach ($not_present as $field) {
           $this->error("ERROR: missing value for required field '{$field}' in the input.");
         }
         $this->message(var_export($req_fields, true));
-        $this->message(var_export($not_present, true));
+        $this->message(var_export($field_data, true));
         break;
         // continue; // go to the next record in the input
-      }
+      }*/
 
       $this->message("Data interpreted as ".str_replace("\n", " ", print_r($field_data, true)), Notice::debug);
       $this->message("Page selector is {$selector}.", Notice::debug);
@@ -305,10 +316,10 @@ class DataSetCsvProcessor extends WireData implements Module {
       // it will log error and warning messages
       $newPage = $this->modules->DataSet->importPage($dataSetPage, $selector, $field_data, $params);
       
-      if ($newPage !== NULL && $newPage instanceof Page) {
+      if ($newPage instanceof Page) {
         $newPages[] = $newPage->title;
-      } else {
-        $this->error("ERROR: could not import the record '".var_export($csv_data, true)."'");
+      } elseif ($newPage === false) {
+        $this->error("ERROR: could not import the record '".implode($params['input']['delimiter'], $csv_data)."'");
       }
 
       // Report progress and check for events if a milestone is reached

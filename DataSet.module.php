@@ -581,19 +581,19 @@ pages:
    * @param $field_data assoc array of field name => value pairs to be set
    * @param $params array of config parameters like the task object, timeout, tag name of the entry etc.
    * 
-   * @returns PW Page object that has been added/updated, NULL otherwise
+   * @returns PW Page object that has been added/updated, false on error, NULL otherwise
    */
   public function importPage(Page $dataSetPage, $selector, $field_data, &$params) {
     // check the page selector
     if (strlen($selector)<2 || !strpos($selector, '=')) {
       $this->error("ERROR: invalid page selector '{$selector}' found in the input.");
-      return NULL;
+      return false;
     }
 
     // check the page title
     if (!isset($field_data['title']) || strlen($field_data['title'])<1) {
       $this->error("ERROR: invalid / empty title found in '{$selector}'.");
-      return NULL;
+      return false;
     }
 
 /* TODO
@@ -614,7 +614,7 @@ pages:
       if (isset($params['pages']['merge']) || isset($params['pages']['overwrite'])) {
         return $this->updatePage($dataPage, $params['pages']['template'], $field_data, isset($params['pages']['overwrite']));
       } else {
-        $this->message("WARNING: MERGE or OVERWIRE not specified so not updating already existing data in '{$dataPage->title}'.");
+        $this->message("WARNING: merge or overwrite not specified so not updating already existing data in '{$dataPage->title}'.");
         return NULL;
       }
     }
@@ -624,7 +624,7 @@ pages:
     if (!isset($params['pages']['skip_new'])) { // create a new page if needed
       return $this->createPage($dataSetPage, $params['pages']['template'], $field_data['title'], $field_data);
     } else {
-      $this->error('ERROR: not importing '.str_replace("\n", " ", print_r($field_data, true))
+      $this->error('WARNING: not importing '.str_replace("\n", " ", print_r($field_data, true))
             . ' into "'.$field_data['title'].'" because skip_new is specified.');
       return NULL;
     }
@@ -637,28 +637,30 @@ pages:
    * @param $template the template of the new page
    * @param $title title for the new page  // TODO this can be removed
    * @param $fields assoc array of field name => value pairs to be set
+   * 
+   * @returns PW Page object that has been created, false on error, NULL otherwise
    */
   public function createPage(Page $parent, $template, $title, $field_data = array()) {
     if (!is_object($parent) || ($parent instanceof NullPage)) {
       $this->error("ERROR: error creating new {$template} named '{$title}' since its parent does not exists.");
-      return NULL;
+      return false;
     }
     if (!is_string($title) || mb_strlen($title)<2) {
       $this->error("ERROR: error creating new {$template} named '{$title}' since its title is invalid.");
-      return NULL;
+      return false;
     }
     // parent page needs to have an ID, get one by saving it
     if (!$parent->id) $parent->save();
     $p = $this->wire(new Page());
     if (!is_object($p)) {
       $this->error("ERROR: error creating new page named {$title} from {$template} template.");
-      return NULL;
+      return false;
     }
     $p->template = $template;
     $pt = wire('templates')->get($template);
     if (!is_object($pt)) {
       $this->error("ERROR: template '{$template}' does not exists.");
-      return NULL;
+      return false;
     }
 
     // TODO do we need this here?
@@ -673,7 +675,7 @@ pages:
       if ($field == 'title') continue;
       if (!$pt->hasField($field)) {
         $this->error("ERROR: template '{$template}' has no field named '{$field}'.");
-        return NULL;
+        return false;
       }
 
       // get the field config
@@ -727,7 +729,7 @@ pages:
       // "Unable to generate unique name for page 0"
       $this->error("ERROR: failed to create page '{$title}'.");
       $this->message($e->getMessage());
-      return NULL;
+      return false;
     }
     // $this->message("{$parent->title} / {$title} [{$template}] created.", Notice::debug);
 
@@ -750,11 +752,13 @@ pages:
    * @param $template the template of the updated page
    * @param $field_data assoc array of field name => value pairs to be set
    * @param $overwrite - overwrite existing data?
+   * 
+   * @returns PW Page object that has been added/updated, false on error, NULL otherwise
    */
   public function updatePage(Page $page, $template, $field_data = array(), $overwrite = false) {
     if (!is_object($page) || ($page instanceof NullPage)) {
       $this->error("ERROR: error updating page because it does not exists.");
-      return NULL;
+      return false;
     }
 
     // check if there is anything to update
@@ -763,12 +767,12 @@ pages:
     // check the page title
     if (!is_string($field_data['title']) || mb_strlen($field_data['title'])<2) {
       $this->error("ERROR: error updating page because its title is invalid.");
-      return NULL;
+      return false;
     }
 
     if ($page->template != $template) {
       $this->error("ERROR: error updating page because its template does not match.");
-      return NULL;
+      return false;
     }
    $pt = wire('templates')->get($template);
 
@@ -777,7 +781,7 @@ pages:
    foreach ($field_data as $field => $value) {
       if (!$pt->hasField($field)) {
         $this->error("ERROR: template '{$template}' has no field named '{$field}'.");
-        return NULL;
+        return false;
       }
 
       // get the field config
@@ -834,7 +838,7 @@ pages:
       // "Unable to generate unique name for page 0"
       $this->error("ERROR: failed to update page '{$title}'.");
       $this->message($e->getMessage());
-      return NULL;
+      return false;
     }
     // $this->message("{$page->title} [{$template}] updated.", Notice::debug);
 

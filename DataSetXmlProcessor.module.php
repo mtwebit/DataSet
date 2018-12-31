@@ -258,7 +258,7 @@ class DataSetXmlProcessor extends WireData implements Module {
 
       if ($newPage instanceof Page) {
         $newPages[] = $newPage->title;
-      } else {
+      } elseif ($newPage === false) {
         $this->error("ERROR: could not import the record '".htmlentities($xml_string)."'");
       }
 
