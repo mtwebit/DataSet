@@ -135,6 +135,13 @@ class DataSetXmlProcessor extends WireData implements Module {
       $req_fields = array();
     }
 
+    // set default values for field data
+    if (isset($params['field_data_defaults']) && is_array($params['field_data_defaults'])) {
+      $field_data_defaults = $params['field_data_defaults'];
+    } else {
+      $field_data_defaults = array();
+    }
+
     // find the first entry tag
     while ($xml->read() && $xml->localName != $params['input']['delimiter']);
 
@@ -154,6 +161,9 @@ class DataSetXmlProcessor extends WireData implements Module {
     // set an initial milestone
     $taskData['milestone'] = $entrySerial + 20;
 
+//
+// The MAIN data import loop
+//
     if ($notFinished) do {
       if (!$tasker->allowedToExecute($task, $params)) {
         $taskData['offset'] = $entrySerial;
@@ -193,7 +203,8 @@ class DataSetXmlProcessor extends WireData implements Module {
       $selector = $params['pages']['selector'];
 
       // transfer input data to a field array
-      $field_data = array();
+      $field_data = $field_data_defaults;
+
       foreach ($params['fieldmappings'] as $field => $xselect) {
         if ($xselect == '.') { // get the actual record
           $value = $xml_string;
@@ -258,6 +269,9 @@ class DataSetXmlProcessor extends WireData implements Module {
       }
 
     } while ($xml->next($params['input']['delimiter']));
+//
+// END of the MAIN data import loop (if we still have data)
+//
 
     // close the XML input
     $xml->close();
