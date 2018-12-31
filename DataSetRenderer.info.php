@@ -18,5 +18,5 @@ $info = array(
   'href' => 'https://github.com/mtwebit/DataSet',
   'singular' => false,
   'autoload' => false,
-  'icon' => 'link', // fontawesome icon
+  'icon' => 'desktop',
 );
