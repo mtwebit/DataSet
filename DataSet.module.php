@@ -23,11 +23,15 @@ class DataSet extends WireData implements Module {
   const TAG_PURGE='purge';    // purge the data set before import
   const DEF_IMPORT_OPTIONS = '
 name: Default import configuration
+comment: any text
 input:
   type: csv
   delimiter: \',\'
+  max_line_length: 2048
   header: 1
   enclosure: \'"\'
+csv_data_defaults:
+field_data_defaults:
 fieldmappings:
   title: 1
 pages:
@@ -588,7 +592,7 @@ pages:
 
     // check the page title
     if (!isset($field_data['title']) || strlen($field_data['title'])<1) {
-      $this->error("ERROR: invalid / empty title '{$field_data['title']}' found in '{$selector}'.");
+      $this->error("ERROR: invalid / empty title found in '{$selector}'.");
       return NULL;
     }
 
@@ -879,8 +883,14 @@ pages:
         return false;
       }
       if (is_array($values)) foreach ($values as $setting => $value) {
-        // TODO validate settings
-        $ret[$section][$setting] = $this->wire('sanitizer')->text($value);
+        if (is_array($value)) {
+          // TODO validate arrays
+          $ret[$section][$setting] = $value;
+        } elseif (is_numeric($value)) {
+          $ret[$section][$setting] = $value;
+        } else {
+          $ret[$section][$setting] = $this->wire('sanitizer')->text($value);
+        }
       } else {
         $ret[$section] = $this->wire('sanitizer')->text($values);
       }
