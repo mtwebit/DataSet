@@ -359,7 +359,6 @@ pages:
       $taskData['max_records'] = $proc->countRecords($file, $params);
       $taskData['records_processed'] = 0;
       $taskData['task_done'] = 0;
-      $taskData['offset'] = 0;    // file offset
     }
 
     if ($taskData['max_records'] == 0) { // empty file?
@@ -489,7 +488,7 @@ pages:
    * 
    * @param $dataSetPage ProcessWire Page object (the data set)
    * @param $taskData task data assoc array
-   * @param $params runtime paramteres, e.g. timeout, estimation and task object
+   * @param $params runtime paramteres, e.g. timeout and task object
    * @returns false on error, a result message on success
    */
   public function purge($dataSetPage, &$taskData, $params) {
@@ -510,9 +509,6 @@ pages:
     // calculate the task's actual size
     $tsize=$this->pages->count($selector);
 
-    // return the task size if requested
-    if (isset($params['estimation'])) return $tsize;
-
     // initialize task data if this is the first invocation
     if ($taskData['records_processed'] == 0) {
       // estimate the number of processable records
@@ -532,10 +528,13 @@ pages:
 
     // store a few page names to print out
     $deleted = array();
+
     // set an initial milestone
     $taskData['milestone'] = $taskData['records_processed'] + 50;
 
     $children = $this->pages->findMany($selector);
+
+    $lazy = 10;
 
     foreach ($children as $child) {
       $taskData['records_processed']++;
@@ -551,6 +550,11 @@ pages:
         // clear the deleted pages array (the have been already reported in the log)
         $deleted = array();
       }
+
+      // don't check the limits too often, deleting pages is fast
+      if (--$lazy) continue;
+      $lazy = 10;
+
       if (!$tasker->allowedToExecute($task, $params)) { // reached execution limits
         $taskData['task_done'] = 0;
         break;  // the while loop
@@ -608,7 +612,9 @@ pages:
 
     $this->message("Checking existing content with selector '{$selector}'.", Notice::debug);
 
-    $dataPage = $dataSetPage->child($selector);
+    // TODO speed up selectors...
+    $selectorOptions = array('getTotal' => false);
+    $dataPage = $dataSetPage->child($selector, $selectorOptions);
 
     if ($dataPage->id) { // found a page using the selector
       if (isset($params['pages']['merge']) || isset($params['pages']['overwrite'])) {
