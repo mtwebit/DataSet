@@ -97,8 +97,6 @@ class DataSetCsvProcessor extends WireData implements Module {
 
     // count and store a few processed records
     $newPageCounter = 0; $newPages = array();
-    // Entry record number from the beginning of the input (offset)
-    $entrySerial = 0;
     // set the import status to not finished
     $notFinished = true;
 
@@ -108,6 +106,9 @@ class DataSetCsvProcessor extends WireData implements Module {
         $this->error("ERROR: locale {$params['input']['encoding']} is not supported by your system.");
         return false;
       }
+      $encoding = $params['input']['encoding'];
+    } else {
+      $encoding = 'utf-8';
     }
 
     // skip header rows if needed
@@ -139,19 +140,18 @@ class DataSetCsvProcessor extends WireData implements Module {
     }
 
     // check if we need to skip a few records
-    if ($taskData['offset'] > 0) {
-      $this->message('Skipping '.$taskData['offset'].' entries.', Notice::debug);
+    if ($taskData['records_processed'] > 0) {
+      $entrySerial = 0;
+      $this->message('Skipping '.$taskData['records_processed'].' entries.', Notice::debug);
       while (!($notFinished = fgetcsv($fd, $params['input']['max_line_length'],
                           $params['input']['delimiter'],
                           $params['input']['enclosure']))) {
-        if (++$entrySerial == $taskData['offset']) break;
+        if (++$entrySerial == $taskData['records_processed']) break;
       }
-      $taskData['offset'] = 0; // clear the old offset, will be set again later on
     }
 
     // set an initial milestone
-    $taskData['milestone'] = $entrySerial + 20;
-
+    $taskData['milestone'] = $taskData['records_processed'] + 20;
 
 // TODO rethink return status
 
@@ -160,7 +160,6 @@ class DataSetCsvProcessor extends WireData implements Module {
 //
     if ($notFinished) do {
       if (!$tasker->allowedToExecute($task, $params)) {
-        $taskData['offset'] = $entrySerial;
         $taskData['task_done'] = 0;
         break; // ... the loop
       }
@@ -180,12 +179,10 @@ class DataSetCsvProcessor extends WireData implements Module {
       }
 
       // increase the number of processed records and the actual offset counter
-      // TODO are they the same?
       $taskData['records_processed']++;
-      $entrySerial++;
 
-      // check encoding
-      if (!mb_check_encoding(implode(' ', $csv_data))) {
+      // check encoding, TODO this is fairly slow, see https://stackoverflow.com/questions/1523460/ensuring-valid-utf-8-in-php
+      if (!mb_check_encoding(implode(' ', $csv_data), $encoding)) {
         $this->error('ERROR: wrong character encoding in '.implode($params['input']['delimiter'], $csv_data));
         break;
       }
@@ -198,7 +195,7 @@ class DataSetCsvProcessor extends WireData implements Module {
       // add a serial number to the beginning of the record
       // it will get index 0 in the $csv_data array
       // this also ensures that CSV files with only one column (and no delimiter) can be processed this way
-      $csv_data = array_merge(array(0 => $entrySerial), $csv_data);
+      $csv_data = array_merge(array(0 => $taskData['records_processed']), $csv_data);
 
       // check for required fields
       foreach ($req_fields as $column) {
@@ -326,7 +323,7 @@ class DataSetCsvProcessor extends WireData implements Module {
       if ($tasker->saveProgressAtMilestone($task, $taskData, $params) && count($newPages)) {
         $this->message('Import successful for '.implode(', ', $newPages));
         // set the next milestone
-        $taskData['milestone'] = $entrySerial + 20;
+        $taskData['milestone'] = $taskData['records_processed'] + 20;
         // clear the new pages array (the have been already reported in the log)
         $newPages = array();
       }
