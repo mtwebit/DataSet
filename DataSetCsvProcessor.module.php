@@ -57,7 +57,9 @@ class DataSetCsvProcessor extends WireData implements Module {
     }
     // count rows
     $count = 0;
-    while (fgets($fd)) { // TODO large lines?
+    while (fgetcsv($fd, $params['input']['max_line_length'],
+                          $params['input']['delimiter'],
+                          $params['input']['enclosure'])) {
       $count++;
     }
     fclose($fd);
