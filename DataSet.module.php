@@ -371,6 +371,10 @@ pages:
 
     // import the data set from the file using the appropriate input processor
     $ret = $proc->process($dataSetPage, $file, $taskData, $params);
+
+    // save the progress before returning (for this time)
+    $tasker->saveProgress($task, $taskData);
+
     if ($ret === false) return false;
 
     // check if the file has been only partially processed (e.g. due to max exec time is reached)
@@ -543,7 +547,7 @@ pages:
       $child->delete(true); // delete children as well
 
       // Report progress and check for events if a milestone is reached
-      if ($tasker->saveProgressAtMilestone($task, $taskData, $params) && count($deleted)) {
+      if ($tasker->saveProgressAtMilestone($task, $taskData) && count($deleted)) {
         $this->message('Deleted pages: '.implode(', ', $deleted));
         // set a new milestone
         $taskData['milestone'] = $taskData['records_processed'] + 50;

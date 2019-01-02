@@ -147,9 +147,8 @@ class DataSetXmlProcessor extends WireData implements Module {
 
     // check if we need to skip a few records
     if ($taskData['offset'] > 0) {
-      $this->message('Skipping '.$taskData['offset'].' entries.', Notice::debug);
-      // read the next entry and alter the finished status if there is no more entries
-      while ($notFinished=$xml->next($params['input']['delimiter'])) {
+      $entrySerial = 0;
+      while (false !== $xml->next($params['input']['delimiter'])) {
         // skip the end element
         if ($xml->nodeType != \XMLReader::ELEMENT) continue;
         // skip the specified number of entries
@@ -263,7 +262,7 @@ class DataSetXmlProcessor extends WireData implements Module {
       }
 
       // Report progress and check for events if a milestone is reached
-      if ($tasker->saveProgressAtMilestone($task, $taskData, $params)) {
+      if ($tasker->saveProgressAtMilestone($task, $taskData)) {
         $this->message('Import successful for '.implode(', ', $newPages));
         // set the next milestone
         $taskData['milestone'] = $entrySerial + 20;
@@ -275,9 +274,6 @@ class DataSetXmlProcessor extends WireData implements Module {
 //
 // END of the MAIN data import loop (if we still have data)
 //
-
-    // save the progress (it is necessary here because of the loop breaks)
-    $tasker->saveProgressAtMilestone($task, $taskData, $params);
 
     // close the XML input
     $xml->close();

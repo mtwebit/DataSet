@@ -142,12 +142,12 @@ class DataSetCsvProcessor extends WireData implements Module {
     // check if we need to skip a few records
     if ($taskData['records_processed'] > 0) {
       $entrySerial = 0;
-      $this->message('Skipping '.$taskData['records_processed'].' entries.', Notice::debug);
-      while (!($notFinished = fgetcsv($fd, $params['input']['max_line_length'],
+      while (false !== fgetcsv($fd, $params['input']['max_line_length'],
                           $params['input']['delimiter'],
-                          $params['input']['enclosure']))) {
+                          $params['input']['enclosure'])) {
         if (++$entrySerial == $taskData['records_processed']) break;
       }
+      $this->message('Skipped '.$entrySerial.' entries.', Notice::debug);
     }
 
     // set an initial milestone
@@ -169,7 +169,9 @@ class DataSetCsvProcessor extends WireData implements Module {
         break; // ... the loop
       }
 
-      // This ensures that new lines in fields are processed correctly
+      $this->message('Reading record #'.($taskData['records_processed'] + 1).' from the input...', Notice::debug);
+
+      // fgetcsv() ensures that new lines in fields are processed correctly
       $csv_data = fgetcsv($fd, $params['input']['max_line_length'],
                           $params['input']['delimiter'],
                           $params['input']['enclosure']);
@@ -320,7 +322,7 @@ class DataSetCsvProcessor extends WireData implements Module {
       }
 
       // Report progress and check for events if a milestone is reached
-      if ($tasker->saveProgressAtMilestone($task, $taskData, $params) && count($newPages)) {
+      if ($tasker->saveProgressAtMilestone($task, $taskData) && count($newPages)) {
         $this->message('Import successful for '.implode(', ', $newPages));
         // set the next milestone
         $taskData['milestone'] = $taskData['records_processed'] + 20;
@@ -332,9 +334,6 @@ class DataSetCsvProcessor extends WireData implements Module {
 //
 // END of the MAIN data import loop (if we still have data)
 //
-
-    // save the progress (it is necessary here because of the loop breaks)
-    $tasker->saveProgressAtMilestone($task, $taskData, $params);
 
     fclose($fd);
 
