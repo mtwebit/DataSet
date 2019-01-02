@@ -262,7 +262,6 @@ class DataSetXmlProcessor extends WireData implements Module {
         $this->error("ERROR: could not import the record '".htmlentities($xml_string)."'");
       }
 
-
       // Report progress and check for events if a milestone is reached
       if ($tasker->saveProgressAtMilestone($task, $taskData, $params)) {
         $this->message('Import successful for '.implode(', ', $newPages));
@@ -276,6 +275,9 @@ class DataSetXmlProcessor extends WireData implements Module {
 //
 // END of the MAIN data import loop (if we still have data)
 //
+
+    // save the progress (it is necessary here because of the loop breaks)
+    $tasker->saveProgressAtMilestone($task, $taskData, $params);
 
     // close the XML input
     $xml->close();

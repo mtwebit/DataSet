@@ -333,6 +333,9 @@ class DataSetCsvProcessor extends WireData implements Module {
 // END of the MAIN data import loop (if we still have data)
 //
 
+    // save the progress (it is necessary here because of the loop breaks)
+    $tasker->saveProgressAtMilestone($task, $taskData, $params);
+
     fclose($fd);
 
     // print out some info for the user
