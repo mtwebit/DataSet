@@ -97,8 +97,9 @@ class DataSetCsvProcessor extends WireData implements Module {
 
     // count and store a few processed records
     $newPageCounter = 0; $newPages = array();
+
     // set the import status to not finished
-    $notFinished = true;
+    $notEOF = true;
 
     // check and set encoding
     if (isset($params['input']['encoding'])) {
@@ -142,9 +143,9 @@ class DataSetCsvProcessor extends WireData implements Module {
     // check if we need to skip a few records
     if ($taskData['records_processed'] > 0) {
       $entrySerial = 0;
-      while (false !== fgetcsv($fd, $params['input']['max_line_length'],
+      while (false !== ($notEOF = fgetcsv($fd, $params['input']['max_line_length'],
                           $params['input']['delimiter'],
-                          $params['input']['enclosure'])) {
+                          $params['input']['enclosure']))) {
         if (++$entrySerial == $taskData['records_processed']) break;
       }
       $this->message('Skipped '.$entrySerial.' entries.', Notice::debug);
@@ -158,7 +159,7 @@ class DataSetCsvProcessor extends WireData implements Module {
 //
 // The MAIN data import loop (if we still have data)
 //
-    if ($notFinished) do {
+    if ($notEOF) do {
       if (!$tasker->allowedToExecute($task, $params)) {
         $taskData['task_done'] = 0;
         break; // ... the loop

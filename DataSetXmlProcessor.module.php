@@ -123,10 +123,9 @@ class DataSetXmlProcessor extends WireData implements Module {
 
     // count and store a few processed records
     $newPageCounter = 0; $newPages = array();
-    // Entry record number from the beginning of the input (offset)
-    $entrySerial = 0;
+
     // set the import status to not finished
-    $notFinished = true;
+    $notEOF = true;
 
     // determine what columns are required
     if (isset($params['input']['required_fields']) && is_array($params['input']['required_fields'])) {
@@ -148,12 +147,13 @@ class DataSetXmlProcessor extends WireData implements Module {
     // check if we need to skip a few records
     if ($taskData['offset'] > 0) {
       $entrySerial = 0;
-      while (false !== $xml->next($params['input']['delimiter'])) {
+      while (false !== ($notEOF = $xml->next($params['input']['delimiter']))) {
         // skip the end element
         if ($xml->nodeType != \XMLReader::ELEMENT) continue;
         // skip the specified number of entries
         if (++$entrySerial == $taskData['offset']) break;
       }
+      $this->message('Skipped '.$entrySerial.' entries.', Notice::debug);
       $taskData['offset'] = 0; // clear the old offset, will be set again later on
     }
 
@@ -163,7 +163,7 @@ class DataSetXmlProcessor extends WireData implements Module {
 //
 // The MAIN data import loop
 //
-    if ($notFinished) do {
+    if ($notEOF) do {
       if (!$tasker->allowedToExecute($task, $params)) {
         $taskData['offset'] = $entrySerial;
         $taskData['task_done'] = 0;
