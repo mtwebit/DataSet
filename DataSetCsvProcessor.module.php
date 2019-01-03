@@ -48,11 +48,18 @@ class DataSetCsvProcessor extends WireData implements Module {
    * returns false on fatal error, number of records on success
    */
   public function countRecords($file, &$params) {
-    $this->message("Counting records in {$file->name}.", Notice::debug);
+    if (isset($params['input']['location'])) { // file location override
+      $fileInfo = $this->modules->DataSet->getFileInfoFromURL($params['input']['location']);
+      if ($fileInfo === false) return false;
+    } else {
+      $fileInfo = array('path' => $file->filename, 'name' => $file->name);
+    }
+
+    $this->message("Counting records in {$fileInfo['name']}.", Notice::debug);
     ini_set("auto_detect_line_endings", true);
-    $fd = fopen($file->filename, 'rb');
+    $fd = fopen($fileInfo['path'], 'rb');
     if (!$fd) {
-      $this->error("Unable to open {$file->name}.");
+      $this->error("ERROR: Unable to open {$fileInfo['name']}.");
       return false;
     }
     // count rows
@@ -79,11 +86,19 @@ class DataSetCsvProcessor extends WireData implements Module {
    * returns false on fatal error
    */
   public function process(Page $dataSetPage, $file, &$taskData, &$params) {
-    $this->message("Importing records from {$file->name}.", Notice::debug);
+    if (isset($params['input']['location'])) { // file location override
+      $fileInfo = $this->modules->DataSet->getFileInfoFromURL($params['input']['location']);
+      if ($fileInfo === false) return false;
+      $this->message("WARNING: using location override '{$params['input']['location']}' instead of '{$file->name}'.");
+    } else {
+      $fileInfo = array('path' => $file->filename, 'name' => $file->name);
+    }
+
+    $this->message("Importing records from {$fileInfo['name']}.", Notice::debug);
     ini_set("auto_detect_line_endings", true);
-    $fd = fopen($file->filename, 'rb');
+    $fd = fopen($fileInfo['path'], 'rb');
     if (!$fd) {
-      $this->error("ERROR: unable to open {$file->name}.");
+      $this->error("ERROR: unable to open {$fileInfo['name']}.");
       return false;
     }
 

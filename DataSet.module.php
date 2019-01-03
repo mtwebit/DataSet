@@ -959,4 +959,44 @@ pages:
     }
   }
 
+
+  /**
+   * Validate an URL and return filename and location info.
+   * It supports wire://pagenum/filename type locations.
+   * 
+   * @param $uri an URI poiting to a file
+   * returns array of (full_path_of_the_file, short_name_of_the_file)
+   */
+  public function getFileInfoFromURL($url) {
+    $url = filter_var(trim($url), FILTER_VALIDATE_URL);
+    if ($url === false) {
+      $this->error("ERROR: invalid file location {$url}.");
+      return false;
+    }
+    $urlparts = parse_url($url);
+    $fileProto = $urlparts['scheme'];
+    $fileName = basename($urlparts['path']);
+    if ($fileName == '') {
+      $this->error("ERROR: empty file location {$url}.");
+      return false;
+    }
+    if ($fileProto == 'wire') {
+      $pageId = $urlparts['host'];
+      $page = $this->pages->get($pageId);
+      if ($page instanceof NullPage) {
+        $this->error("ERROR: could not find page {$pageId} for file location {$url}.");
+        return false;
+      }
+      $file = $page->{$this->sourcefield}->findOne('name='.$fileName);
+      if ($file==NULL) {
+        $this->error("ERROR: could not find {$fileName} on page {$page->title}.");
+        return false;
+      }
+      $filePathName = $file->filename;
+      // $fileName = $file->name; // should be the same
+    } else {
+      $filePathName = $url;
+    }
+    return array('path' => $filePathName, 'name' => $fileName);
+  }
 }
