@@ -962,7 +962,7 @@ pages:
 
   /**
    * Validate an URL and return filename and location info.
-   * It supports wire://pagenum/filename type locations.
+   * It supports local PW file locations as wire://pagenum/filename.
    * 
    * @param $uri an URI poiting to a file
    * returns array of (full_path_of_the_file, short_name_of_the_file)
