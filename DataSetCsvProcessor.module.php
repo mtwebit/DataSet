@@ -271,7 +271,6 @@ class DataSetCsvProcessor extends WireData implements Module {
           }
           // TODO This removes [ ] and other chars, see https://github.com/processwire/processwire/blob/master/wire/core/Sanitizer.php#L1506
           // HOWTO fix this?
-          // TODO This may encounter encoding problems. How to handle them?
           $svalue = wire('sanitizer')->selectorValue($field_data[$field]);
 
           // TODO
@@ -280,17 +279,17 @@ class DataSetCsvProcessor extends WireData implements Module {
           // TODO
           // rewrite the selector setting as an array of fields to be matched
           
-          // page reference selectors
+          // handle page reference selectors
           $fconfig = $ptemplate->fields->get($field);
           if ($fconfig == NULL) {
             $this->error("ERROR: unable to retrieve configuration for field {$field}.");
             break 2; // stop processing records, the error needs to be fixed
           }
           if ($fconfig->type instanceof FieldtypePage) {
-            $pageSelector = wire('modules')->DataSet->getPageSelector($fconfig, $field_data[$field]);
+            $pageSelector = $this->modules->DataSet->getPageSelector($fconfig, $field_data[$field]);
             $svalue = $this->pages->findOne($pageSelector);
             if ($svalue === NULL || $svalue instanceof NullPage) {
-              $this->warning("WARNING: Referenced page {$value} for field {$field} is not found.");
+              $this->warning("WARNING: Could not find referenced page {$value} for field {$field}.");
               continue;
             }
           }
