@@ -8,8 +8,8 @@
  */
 
 function DataSet(command, pageid, title, pathname, fileid) {
-  var taskerAdminUrl = ProcessWire.config.urls.admin + 'page/tasks',
-      taskerAdminApiUrl = taskerAdminUrl + '/api',
+  var taskerAdminUrl = ProcessWire.config.tasker.adminUrl,
+      taskerAdminApiUrl = ProcessWire.config.tasker.apiUrl,
       timeout = 150,
       unloading = false,
       progressLabel = $('#dataset_file_' + fileid + ' span'),
