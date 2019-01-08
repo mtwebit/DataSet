@@ -878,7 +878,7 @@ pages:
     // YAML warnings do not cause exceptions
     // Convert them to exceptions using a custom error handler
     set_error_handler(function($errno, $errstr, $errfile, $errline, array $errcontext) {
-      throw new ErrorException($errstr, 0, $errno, $errfile, $errline);
+      throw new \ErrorException($errstr, 0, $errno, $errfile, $errline);
     }, E_WARNING);
     try {
       $config = yaml_parse($yconfig);
