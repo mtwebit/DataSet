@@ -27,13 +27,15 @@ class DataSetConfig extends ModuleConfig {
     $fieldset = $this->wire('modules')->get('InputfieldFieldset');
     $fieldset->label = __('Requirements');
 
+    $f = $this->modules->get('InputfieldMarkup');
     if (!$this->modules->isInstalled('Tasker')) {
-      $f = $this->modules->get('InputfieldMarkup');
       $this->message('Tasker module is missing.', Notice::warning);
-      $f->value = '<p>Tasker module is missing. Install it before using this module.</p>';
-      $f->columnWidth = 50;
-      $fieldset->add($f);
+      $out = '<p>Tasker module is missing. Install it before using this module.</p>';
+    } else {
+      $out = "<p>Good! Tasker module is installed.</p>";
     }
+    $f->value = $out;
+    $fieldset->add($f);
 
     $inputfields->add($fieldset);
 

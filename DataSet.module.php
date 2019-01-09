@@ -89,6 +89,15 @@ pages:
       // append Javascript functions
       $this->config->scripts->add($this->config->urls->siteModules . 'DataSet/DataSet.js');
       $this->config->styles->add($this->config->urls->siteModules . 'DataSet/DataSet.css');
+
+      $taskerAdmin = wire('modules')->get('TaskerAdmin');
+      $this->adminUrl = $taskerAdmin->adminUrl;
+      // make this available for Javascript functions
+      $this->config->js('tasker', [
+        'adminUrl' => $this->adminUrl,
+        'apiUrl' => $this->adminUrl . 'api/',
+        'timeout' => 1000 * intval(ini_get('max_execution_time'))
+      ]);
     }
   }
 
