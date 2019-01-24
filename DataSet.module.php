@@ -744,7 +744,7 @@ pages:
     try {
       // pages must be saved now to add external resources to fields
       if (!$p->save()) {
-        $this->error("ERROR: error saving new page "{$title}".");
+        $this->error("ERROR: error saving new page '{$title}'.");
       }
     } catch (\Exception $e) {
       // TODO very long page titles may cause problems while saving the page
@@ -761,7 +761,7 @@ pages:
       $p->$field->add($value);
     }
     if (!$p->save()) {
-      $this->error("ERROR: error saving fields on page "{$title}".");
+      $this->error("ERROR: error saving fields on page '{$title}'.");
     }
     return $p;
   }
@@ -856,7 +856,7 @@ pages:
 
     try {
       if (!$p->save()) {
-        $this->error("ERROR: error saving modified page "{$title}".");
+        $this->error("ERROR: error saving modified page '{$title}'.");
       }
     } catch (\Exception $e) {
       // TODO very long page titles may cause problems while saving the page
