@@ -742,7 +742,10 @@ pages:
 */
 
     try {
-      $p->save(); // pages must be saved to be a parent or to be referenced
+      // pages must be saved now to add external resources to fields
+      if (!$p->save()) {
+        $this->error("ERROR: error saving new page "{$title}".");
+      }
     } catch (\Exception $e) {
       // TODO very long page titles may cause problems while saving the page
       // "Unable to generate unique name for page 0"
@@ -757,8 +760,9 @@ pages:
       $this->message("Downloading and adding {$value} to {$field}.", Notice::debug);
       $p->$field->add($value);
     }
-    $p->save();
-
+    if (!$p->save()) {
+      $this->error("ERROR: error saving fields on page "{$title}".");
+    }
     return $p;
   }
 
@@ -851,7 +855,9 @@ pages:
     }
 
     try {
-      $page->save(); // pages must be saved to be a parent or to be referenced
+      if (!$p->save()) {
+        $this->error("ERROR: error saving modified page "{$title}".");
+      }
     } catch (\Exception $e) {
       // TODO very long page titles may cause problems while saving the page
       // "Unable to generate unique name for page 0"
