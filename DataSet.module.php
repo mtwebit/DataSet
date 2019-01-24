@@ -330,9 +330,9 @@ pages:
     // process the file configuration stored in the description field
     $fileConfig = $this->parseConfig($file->description);
     // and add it to the parameter set
-    $params['input'] = $fileConfig['input'];
-    $params['pages'] = $fileConfig['pages'];
-    $params['fieldmappings'] = $fileConfig['fieldmappings'];
+    foreach ($fileConfig as $key => $value) {
+      $params[$key] = $value;
+    }
 
     $ctype = mime_content_type($file->filename);
 

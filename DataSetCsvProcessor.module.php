@@ -228,7 +228,13 @@ class DataSetCsvProcessor extends WireData implements Module {
       $this->message('Processing input record: '.implode($params['input']['delimiter'], $csv_data), Notice::debug);
 
       // use default values
-      $csv_data = array_replace($csv_data_defaults, $csv_data);
+      if (count($csv_data_defaults)) {
+        // this will not replace existing but empty cells in the input
+        // $csv_data = array_replace($csv_data_defaults, $csv_data);
+        foreach ($csv_data_defaults as $key => $value) {
+          if (!isset($csv_data[$key]) || empty($csv_data[$key])) $csv_data[$key] = $value;
+        }
+      }
 
       $this->message('Input record after defaults merged: '.implode($params['input']['delimiter'], $csv_data), Notice::debug);
 
