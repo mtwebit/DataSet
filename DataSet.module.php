@@ -746,7 +746,13 @@ pages:
       if (!$p->save()) {
         $this->error("ERROR: error saving new page '{$title}'.");
       }
+      // Notice: sometimes save() will return true (and the page will be saved)
+      // but some fields won't be stored correctly (e.g. an SQL error happens).
+      // $config->allowExceptions = true is needed to detect this kind of errors.
+      // Tasker will enforce this setting but other methods may not.
     } catch (\Exception $e) {
+      // Delete the partially saved page.
+      $p->delete();
       // TODO very long page titles may cause problems while saving the page
       // "Unable to generate unique name for page 0"
       $this->error("ERROR: failed to create page '{$title}'.");
