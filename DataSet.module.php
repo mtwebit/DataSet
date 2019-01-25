@@ -74,14 +74,6 @@ pages:
     // Note: PW < 3.0.62 has a bug and needs manual fix for conditional hooks:
     // https://github.com/processwire/processwire-issues/issues/261
     if (is_array($this->dataset_templates)) foreach ($this->dataset_templates as $t) {
-
-// TODO These are old methods, remove them  
-      // hook after page save to import dataset entries
-      $this->addHookAfter('Page(template='.$t.')::changed('.$this->sourcefield.')', $this, 'handleSourceChange');
-      // hook to check global configuration changes on dataset pages
-      $this->addHookAfter('Page(template='.$t.')::changed('.$this->configfield.')', $this, 'validateConfigChange');
-
-// TODO Keep the following new methods
       // hook to add import buttons to the input field for datasets
       $this->addHookAfter('InputfieldFile(name='.$this->sourcefield.')::renderItem', $this, 'addFileActionButtons');
       // hook to add purge button to the global dataset options
@@ -89,10 +81,9 @@ pages:
       // append Javascript functions
       $this->config->scripts->add($this->config->urls->siteModules . 'DataSet/DataSet.js');
       $this->config->styles->add($this->config->urls->siteModules . 'DataSet/DataSet.css');
-
       $taskerAdmin = wire('modules')->get('TaskerAdmin');
       $this->adminUrl = $taskerAdmin->adminUrl;
-      // make this available for Javascript functions
+      // make settings available for Javascript functions
       $this->config->js('tasker', [
         'adminUrl' => $this->adminUrl,
         'apiUrl' => $this->adminUrl . 'api/',
@@ -134,19 +125,18 @@ pages:
 
     $page = $this->modules->ProcessPageEdit->getPage();
 
-    $field->message("Field '{$field->name}' changed on '{$page->title}'.", Notice::debug);
+    $event->message("Field '{$field->name}' changed on '{$page->title}'.", Notice::debug);
 
     if (strlen($field->value)<3) return;
 
     $dataSetConfig = $this->parseConfig($field->value);
     if (false === $dataSetConfig) {
-      $field->error('Invalid data set confguration.');
-      $field->message($field->value.' interpreted as '.print_r($dataSetConfig, true), Notice::debug);
+      $event->error("Invalid data set confguration in field '{$field}'.");
       return;
     }
 
-    $field->message('Data set configuration seems to be OK.');
-    $field->message('Config: '.print_r($dataSetConfig, true), Notice::debug);
+    $event->message('Data set configuration seems to be OK.');
+    $event->message('Config: '.print_r($dataSetConfig, true), Notice::debug);
   }
 
 
@@ -168,7 +158,7 @@ pages:
     // parse the config
     $fileConfig = $this->parseConfig($pagefile->description);
     if (!$fileConfig) {
-      $event->return .= '<div>DataSet config is invalid.</div>';
+      $event->return .= '<div>DataSet configuration is invalid.</div>';
       return;
     }
 
@@ -871,6 +861,10 @@ pages:
 
     restore_error_handler();
 
+    if (!is_array($config)) {
+      return false;
+    }
+
     // iterate over the main settings and replace default values
     foreach ($config as $section => $values) {
       if (!in_array($section, $valid_sections)) {
@@ -891,7 +885,7 @@ pages:
       }
     }
 
-    // $this->message("DataSet config '{$yconfig}' was interpreted as ".var_export($ret, true).'.', Notice::debug);
+    $this->message("DataSet config '{$yconfig}' was interpreted as ".var_export($ret, true).'.', Notice::debug);
 
     return $ret;
   }
