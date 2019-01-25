@@ -688,40 +688,33 @@ pages:
     $p->parent = $parent;
     $p->title = $title;
 
-    $externals = array(); // fields storing external files or images will be processed later on
+    // save the core page now to enable adding files and images
+    if (!$p->save()) {
+      $this->error("ERROR: error saving new page '{$title}'.");
+      $p->delete();
+      return false;
+    }
 
-    if (count($field_data)) foreach ($field_data as $field => $value) {
+    if (count($field_data)) foreach ($field_data as $field => $fdata) {
       if ($field == 'title') continue;
       if (!$pt->hasField($field)) {
         $this->error("ERROR: template '{$template}' has no field named '{$field}'.");
+        $p->delete();
         return false;
       }
 
       // get the field config
       $fconfig = $pt->fields->get($field);
 
-      // and handle various field types
-      if ($fconfig->type instanceof FieldtypePage) {    // Page reference
-        $selector = $this->getPageSelector($fconfig, $value);
-        $this->message("Page selector @ field {$field}: {$selector}.", Notice::debug);
-        $refpage = $this->pages->findOne($selector);
-        if ($refpage instanceof Page) {
-          $p->$field = $refpage->id;
-        } else {
-          $this->error("WARNING: referenced page not found for field '{$field}' using selector '{$selector}'.");
-        }
-      } elseif ($fconfig->type instanceof FieldtypeFile
-          || $fconfig->type instanceof FieldtypeImage) {    // Images and files
-        // We can't add files to pages that are not saved. We'll do this later.
-        $externals[$field] = $value;
-      } elseif (is_numeric($value) && $fconfig->type instanceof FieldtypeOptions) {   // Numeric options
-        // if the value is numeric we can't use it as a field value on options fields
-        // See https://processwire.com/api/modules/select-options-fieldtype/#manipulating-options-on-a-page-from-the-api
-        // So... replace $value with an option ID if possible
-        $value = $this->getOptionsFieldValue($fconfig, $value);
-        $p->$field = $value;
+      // if we got an array of values then process all of them
+      if (is_array($fdata)) foreach ($fdata as $value) {
+        $ret = $this->setFieldValue($p, $fconfig, $field, $value);
       } else {
-        $p->$field = $value;
+        $ret = $this->setFieldValue($p, $fconfig, $field, $fdata);
+      }
+      if ($ret === false) {
+        $p->delete();
+        return false;
       }
     }
 
@@ -745,6 +738,8 @@ pages:
       // pages must be saved now to add external resources to fields
       if (!$p->save()) {
         $this->error("ERROR: error saving new page '{$title}'.");
+        $p->delete();
+        return false;
       }
       // Notice: sometimes save() will return true (and the page will be saved)
       // but some fields won't be stored correctly (e.g. an SQL error happens).
@@ -761,14 +756,6 @@ pages:
     }
     // $this->message("{$parent->title} / {$title} [{$template}] created.", Notice::debug);
 
-    // after the page is saved we can download and attach external files and images
-    if (count($externals)) foreach ($externals as $field => $value) {
-      $this->message("Downloading and adding {$value} to {$field}.", Notice::debug);
-      $p->$field->add($value);
-    }
-    if (!$p->save()) {
-      $this->error("ERROR: error saving fields on page '{$title}'.");
-    }
     return $p;
   }
 
@@ -803,11 +790,11 @@ pages:
       $this->error("ERROR: error updating page because its template does not match.");
       return false;
     }
-   $pt = wire('templates')->get($template);
+    $pt = wire('templates')->get($template);
 
-   $this->message("Updating page '{$page->title}'[{$page->id}]", Notice::debug);
+    $this->message("Updating page '{$page->title}'[{$page->id}]", Notice::debug);
 
-   foreach ($field_data as $field => $value) {
+    if (count($field_data)) foreach ($field_data as $field => $fdata) {
       if (!$pt->hasField($field)) {
         $this->error("ERROR: template '{$template}' has no field named '{$field}'.");
         return false;
@@ -816,52 +803,17 @@ pages:
       // get the field config
       $fconfig = $pt->fields->get($field);
 
-      // and handle various field types
-      if ($fconfig->type instanceof FieldtypePage) {    // Page reference
-        $selector = $this->getPageSelector($fconfig, $value);
-        $refpage = $this->pages->findOne($selector);
-        if ($refpage instanceof Page) {
-          $this->message("Found referenced page '{$refpage->title}' for field '{$field}' using the selector '{$selector}'.", Notice::debug);
-          $value = $refpage->id;
-          $hasValue = ($page->$field ? $page->$field->has($selector) : false);
-          $this->message("Field '{$field}' " . ($hasValue ? 'already contains' : 'does not contain') . " the value {$value}.", Notice::debug);
-        } else {
-          $this->error("WARNING: referenced page not found for field '{$field}' using selector '{$selector}'.");
-          continue; // with the next field
-        }
-      } elseif ($fconfig->type instanceof FieldtypeFile
-          || $fconfig->type instanceof FieldtypeImage) {    // Images and files
-        $hasValue = $page->$field->has($value);
-      } elseif (is_numeric($value) && $fconfig->type instanceof FieldtypeOptions) {   // Numeric options
-        // if the value is numeric we can't use it as a field value on options fields
-        // See https://processwire.com/api/modules/select-options-fieldtype/#manipulating-options-on-a-page-from-the-api
-        // So... replace $value with an option ID if possible
-        $value = $this->getOptionsFieldValue($fconfig, $value);
-        $hasValue = $page->$field->has($value);
+      // if we got an array of values then process all of them
+      if (is_array($fdata)) foreach ($fdata as $value) {
+        $ret = $this->setFieldValue($page, $fconfig, $field, $value, $overwrite);
       } else {
-        $hasValue = $page->$field ? true : false;
+        $ret = $this->setFieldValue($page, $fconfig, $field, $fdata, $overwrite);
       }
-
-      if ($overwrite) {
-        $this->message("Overwriting field '{$field}''s old value with '{$value}'.");
-        $page->$field = $value;
-      } else if (!$hasValue) {
-        if ($page->$field instanceof WireArray) {
-          $this->message("Adding new value '{$value}' to field '{$field}'.");
-          $page->$field->add($value);
-        } else {
-          $this->message("Setting field '{$field}' = '{$value}'.");
-          $page->$field = $value;
-        }
-      } else {
-        $this->message("WARNING: not updating already populated field '{$field}'.", Notice::debug);
-      }
-
-      // TODO multi-language support?
+      if ($ret === false) return false;
     }
 
     try {
-      if (!$p->save()) {
+      if (!$page->save()) {
         $this->error("ERROR: error saving modified page '{$title}'.");
       }
     } catch (\Exception $e) {
@@ -980,6 +932,60 @@ pages:
     }
   }
 
+
+  /**
+   * Set field values (also handle updates and existing values)
+   * 
+   * @param $page PW Page that holds the field
+   * @param $fconfig field configuration
+   * @param $field field name
+   * @param $value field value to set
+   * @param $overwrite overwrite already existing values?
+   * @returns an array of fields that need to be set after the page is saved (e.g. file and image fields)
+   */
+  public function setFieldValue($page, $fconfig, $field, $value, $overwrite = false) {
+    if ($fconfig->type instanceof FieldtypePage) {    // Page reference
+      $selector = $this->getPageSelector($fconfig, $value);
+      $this->message("Page selector @ field {$field}: {$selector}.", Notice::debug);
+      $refpage = $this->pages->findOne($selector);
+      if ($refpage instanceof Page && ($refpage->id > 0)) {
+        $this->message("Found referenced page '{$refpage->title}' for field '{$field}' using the selector '{$selector}'.", Notice::debug);
+        $value = $refpage->id;
+        $hasValue = ($page->$field ? $page->$field->has($selector) : false);
+        $this->message("Field '{$field}' " . ($hasValue ? 'already contains' : 'does not contain') . " the value {$value}.", Notice::debug);
+      } else {
+        $this->error("WARNING: referenced page with value '{$value}' not found for field '{$field}' using selector '{$selector}'.");
+        return false;
+      }
+    } elseif ($fconfig->type instanceof FieldtypeFile
+        || $fconfig->type instanceof FieldtypeImage) {    // Images and files
+      $hasValue = $page->$field->has($value);
+    } elseif (is_numeric($value) && $fconfig->type instanceof FieldtypeOptions) {   // Numeric options
+      // if the value is numeric we can't use it as a field value on options fields
+      // See https://processwire.com/api/modules/select-options-fieldtype/#manipulating-options-on-a-page-from-the-api
+      // So... replace $value with an option ID if possible
+      $value = $this->getOptionsFieldValue($fconfig, $value);
+      $hasValue = ($page->$field ? $page->$field->has($value) : false);
+    } else {
+      $hasValue = $page->$field ? true : false;
+    }
+
+    if ($overwrite) {
+      $this->message("Overwriting field '{$field}''s old value with '{$value}'.", Notice::debug);
+      $page->$field = $value;
+    } else if (!$hasValue) {
+      if ($page->$field && $page->$field instanceof WireArray && $page->$field->count()) {
+        $this->message("Adding new value '{$value}' to field '{$field}'.", Notice::debug);
+        $page->$field->add($value);
+      } else {
+        $this->message("Setting field '{$field}' = '{$value}'.", Notice::debug);
+        $page->$field = $value;
+      }
+    } else {
+      $this->message("WARNING: not updating already populated field '{$field}'.", Notice::debug);
+    }
+    return true;
+  }
 
   /**
    * Validate an URL and return filename and location info.
