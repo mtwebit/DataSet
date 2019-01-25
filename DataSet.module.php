@@ -631,17 +631,17 @@ pages:
 
     if ($dataPage->id) { // found a page using the selector
       if (isset($params['pages']['merge']) || isset($params['pages']['overwrite'])) {
-        return $this->updatePage($dataPage, $params['pages']['template'], $field_data, $params['pages']['overwrite']);
+        return $this->updatePage($dataPage, $params['pages']['template'], $field_data, $params);
       } else {
         $this->message("WARNING: merge or overwrite not specified so not updating already existing data in '{$dataPage->title}'.");
         return NULL;
       }
     }
 
-    $this->message("WARNING: no content found matching the '{$selector}' selector. Trying to import the data...", Notice::debug);
+    $this->message("No content found matching the '{$selector}' selector. Trying to import the data as new...", Notice::debug);
 
     if (!isset($params['pages']['skip_new'])) { // create a new page if needed
-      return $this->createPage($dataSetPage, $params['pages']['template'], $field_data['title'], $field_data);
+      return $this->createPage($dataSetPage, $params['pages']['template'], $field_data, $params);
     } else {
       $this->error('WARNING: not importing '.str_replace("\n", " ", print_r($field_data, true))
             . ' into "'.$field_data['title'].'" because skip_new is specified.');
@@ -654,28 +654,31 @@ pages:
    * 
    * @param $parent the parent node reference
    * @param $template the template of the new page
-   * @param $title title for the new page  // TODO this can be removed
-   * @param $fields assoc array of field name => value pairs to be set
+   * @param $field_data assoc array of field name => value pairs to be set
+   * @param $params array of config parameters like the task object, timeout, tag name of the entry etc.
    * 
    * @returns PW Page object that has been created, false on error, NULL otherwise
    */
-  public function createPage(Page $parent, $template, $title, $field_data = array()) {
+  public function createPage(Page $parent, $template, $field_data, &$params) {
     if (!is_object($parent) || ($parent instanceof NullPage)) {
       $this->error("ERROR: error creating new {$template} named '{$title}' since its parent does not exists.");
       return false;
     }
-    if (!is_string($title) || mb_strlen($title)<2) {
-      $this->error("ERROR: error creating new {$template} named '{$title}' since its title is invalid.");
+
+    // check the page title
+    if (!is_string($field_data['title']) || mb_strlen($field_data['title'])<2) {
+      $this->error("ERROR: error creating page because its title is invalid.");
       return false;
     }
+
     // parent page needs to have an ID, get one by saving it
     if (!$parent->id) $parent->save();
-    $p = $this->wire(new Page());
-    if (!is_object($p)) {
-      $this->error("ERROR: error creating new page named {$title} from {$template} template.");
+    $page = $this->wire(new Page());
+    if (!is_object($page)) {
+      $this->error("ERROR: error creating new page named {$field_data['title']} from {$template} template.");
       return false;
     }
-    $p->template = $template;
+    $page->template = $template;
     $pt = wire('templates')->get($template);
     if (!is_object($pt)) {
       $this->error("ERROR: template '{$template}' does not exists.");
@@ -683,37 +686,37 @@ pages:
     }
 
     // TODO do we need this here?
-    $p->of(false); // set output formatting off
+    $page->of(false); // set output formatting off
 
-    $p->parent = $parent;
-    $p->title = $title;
+    $page->parent = $parent;
+    $page->title = $field_data['title'];
 
     // save the core page now to enable adding files and images
-    if (!$p->save()) {
-      $this->error("ERROR: error saving new page '{$title}'.");
-      $p->delete();
+    if (!$page->save()) {
+      $this->error("ERROR: error saving new page '{$field_data['title']}'.");
+      $page->delete();
       return false;
     }
 
-    if (count($field_data)) foreach ($field_data as $field => $fdata) {
-      if ($field == 'title') continue;
+    // array of required field names
+    $required_fields = (isset($params['pages']['required_fields']) ? $params['pages']['required_fields'] : array());
+
+    if (count($field_data)) foreach ($field_data as $field => $value) {
+      if ($field == 'title') continue; // already set
       if (!$pt->hasField($field)) {
         $this->error("ERROR: template '{$template}' has no field named '{$field}'.");
-        $p->delete();
+        $page->delete();
         return false;
       }
 
       // get the field config
       $fconfig = $pt->fields->get($field);
 
-      // if we got an array of values then process all of them
-      if (is_array($fdata)) foreach ($fdata as $value) {
-        $ret = $this->setFieldValue($p, $fconfig, $field, $value);
-      } else {
-        $ret = $this->setFieldValue($p, $fconfig, $field, $fdata);
-      }
-      if ($ret === false) {
-        $p->delete();
+      // set the field's value
+      if (!$this->setFieldValue($page, $fconfig, $field, $value)
+          && in_array($field, $required_fields)) {
+        $this->error("ERROR: could not set the value for required field '{$field}'.");
+        $page->delete();
         return false;
       }
     }
@@ -721,24 +724,24 @@ pages:
 // TODO multi-language support for pages?
 /*
     //foreach ($this->languages as $lang) {
-    $langs = $p->getLanguages();
-    if (count($langs)) foreach ($p->getLanguages() as $lang) {
-      $p->title->setLanguageValue($lang, $title);
-    } else $p->title = $title;
+    $langs = $page->getLanguages();
+    if (count($langs)) foreach ($page->getLanguages() as $lang) {
+      $page->title->setLanguageValue($lang, $field_data['title']);
+    } else $page->title = $field_data['title'];
 
     if (count($fields)) foreach ($fields as $field => $value) {
-      // if ($p->hasField($field)) $p->$field = $value;
-      if (count($langs)) foreach ($p->getLanguages() as $lang) {
-        $p->{$field}->setLanguageValue($lang, $value);
-      } else $p->set($field, $value);
+      // if ($page->hasField($field)) $page->$field = $value;
+      if (count($langs)) foreach ($page->getLanguages() as $lang) {
+        $page->{$field}->setLanguageValue($lang, $value);
+      } else $page->set($field, $value);
     }
 */
 
     try {
       // pages must be saved now to add external resources to fields
-      if (!$p->save()) {
-        $this->error("ERROR: error saving new page '{$title}'.");
-        $p->delete();
+      if (!$page->save()) {
+        $this->error("ERROR: error saving field data for page '{$field_data['title']}'.");
+        $page->delete();
         return false;
       }
       // Notice: sometimes save() will return true (and the page will be saved)
@@ -747,16 +750,16 @@ pages:
       // Tasker will enforce this setting but other methods may not.
     } catch (\Exception $e) {
       // Delete the partially saved page.
-      $p->delete();
+      $page->delete();
       // TODO very long page titles may cause problems while saving the page
       // "Unable to generate unique name for page 0"
-      $this->error("ERROR: failed to create page '{$title}'.");
-      $this->message($e->getMessage());
+      $this->error("ERROR: error saving field data for page '{$field_data['title']}'.");
+      $this->error($e->getMessage());
       return false;
     }
-    // $this->message("{$parent->title} / {$title} [{$template}] created.", Notice::debug);
+    // $this->message("{$parent->title} / {$page->title} [{$template}] created.", Notice::debug);
 
-    return $p;
+    return $page;
   }
 
 
@@ -764,14 +767,14 @@ pages:
   /**
    * Update a Processwire Page and set its fields.
    * 
-   * @param $page the parent node reference
+   * @param $page the PW page to update
    * @param $template the template of the updated page
    * @param $field_data assoc array of field name => value pairs to be set
-   * @param $overwrite - array of fields to overwrite
+   * @param $params array of config parameters like the task object, timeout, tag name of the entry etc.
    * 
    * @returns PW Page object that has been added/updated, false on error, NULL otherwise
    */
-  public function updatePage(Page $page, $template, $field_data = array(), $overwrite = array()) {
+  public function updatePage(Page $page, $template, $field_data, &$params) {
     if (!is_object($page) || ($page instanceof NullPage)) {
       $this->error("ERROR: error updating page because it does not exists.");
       return false;
@@ -794,7 +797,13 @@ pages:
 
     $this->message("Updating page '{$page->title}'[{$page->id}]", Notice::debug);
 
-    if (count($field_data)) foreach ($field_data as $field => $fdata) {
+    // array of field names to overwrite
+    $required_fields = (isset($params['pages']['overwrite']) ? $params['pages']['overwrite'] : array());
+    // array of required field names
+    $required_fields = (isset($params['pages']['required_fields']) ? $params['pages']['required_fields'] : array());
+
+
+    if (count($field_data)) foreach ($field_data as $field => $value) {
       if (!$pt->hasField($field)) {
         $this->error("ERROR: template '{$template}' has no field named '{$field}'.");
         return false;
@@ -803,24 +812,23 @@ pages:
       // get the field config
       $fconfig = $pt->fields->get($field);
 
-      // if we got an array of values then process all of them
-      if (is_array($fdata)) foreach ($fdata as $value) {
-        $ret = $this->setFieldValue($page, $fconfig, $field, $value, in_array($field, $overwrite));
-      } else {
-        $ret = $this->setFieldValue($page, $fconfig, $field, $fdata, in_array($field, $overwrite));
+      // set the field's value
+      if (!$this->setFieldValue($page, $fconfig, $field, $value, in_array($field, $overwrite_fields))
+          && in_array($field, $required_fields)) {
+        $this->error("ERROR: could not set the value for required field '{$field}'.");
+        return false;
       }
-      if ($ret === false) return false;
     }
 
     try {
       if (!$page->save()) {
-        $this->error("ERROR: error saving modified page '{$title}'.");
+        $this->error("ERROR: error saving modified page '{$page->title}'.");
       }
     } catch (\Exception $e) {
       // TODO very long page titles may cause problems while saving the page
       // "Unable to generate unique name for page 0"
-      $this->error("ERROR: failed to update page '{$title}'.");
-      $this->message($e->getMessage());
+      $this->error("ERROR: error saving modified page '{$page->title}'.");
+      $this->error($e->getMessage());
       return false;
     }
     // $this->message("{$page->title} [{$template}] updated.", Notice::debug);
@@ -944,6 +952,14 @@ pages:
    * @returns an array of fields that need to be set after the page is saved (e.g. file and image fields)
    */
   public function setFieldValue($page, $fconfig, $field, $value, $overwrite = false) {
+    // the the value is an array, store each member value separately in the field
+    if (is_array($value)) {
+      foreach ($value as $v) {
+        if (!setFieldValue($page, $fconfig, $field, $value, $overwrite)) return false;
+      }
+      return true;
+    }
+
     if ($fconfig->type instanceof FieldtypePage) {    // Page reference
       $selector = $this->getPageSelector($fconfig, $value);
       $this->message("Page selector @ field {$field}: {$selector}.", Notice::debug);
@@ -952,7 +968,7 @@ pages:
         $this->message("Found referenced page '{$refpage->title}' for field '{$field}' using the selector '{$selector}'.", Notice::debug);
         $value = $refpage->id;
         $hasValue = ($page->$field ? $page->$field->has($selector) : false);
-        $this->message("Field '{$field}' " . ($hasValue ? 'already contains' : 'does not contain') . " the value {$value}.", Notice::debug);
+        if ($hasValue) $this->message("Field '{$field}' already has a reference to '{$refpage->title}' [{$refpage->id}].", Notice::debug);
       } else {
         $this->error("WARNING: referenced page with value '{$value}' not found for field '{$field}' using selector '{$selector}'.");
         return false;
