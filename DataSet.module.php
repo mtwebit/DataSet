@@ -631,7 +631,7 @@ pages:
 
     if ($dataPage->id) { // found a page using the selector
       if (isset($params['pages']['merge']) || isset($params['pages']['overwrite'])) {
-        return $this->updatePage($dataPage, $params['pages']['template'], $field_data, isset($params['pages']['overwrite']));
+        return $this->updatePage($dataPage, $params['pages']['template'], $field_data, $params['pages']['overwrite']);
       } else {
         $this->message("WARNING: merge or overwrite not specified so not updating already existing data in '{$dataPage->title}'.");
         return NULL;
@@ -767,11 +767,11 @@ pages:
    * @param $page the parent node reference
    * @param $template the template of the updated page
    * @param $field_data assoc array of field name => value pairs to be set
-   * @param $overwrite - overwrite existing data?
+   * @param $overwrite - array of fields to overwrite
    * 
    * @returns PW Page object that has been added/updated, false on error, NULL otherwise
    */
-  public function updatePage(Page $page, $template, $field_data = array(), $overwrite = false) {
+  public function updatePage(Page $page, $template, $field_data = array(), $overwrite = array()) {
     if (!is_object($page) || ($page instanceof NullPage)) {
       $this->error("ERROR: error updating page because it does not exists.");
       return false;
@@ -805,9 +805,9 @@ pages:
 
       // if we got an array of values then process all of them
       if (is_array($fdata)) foreach ($fdata as $value) {
-        $ret = $this->setFieldValue($page, $fconfig, $field, $value, $overwrite);
+        $ret = $this->setFieldValue($page, $fconfig, $field, $value, in_array($field, $overwrite));
       } else {
-        $ret = $this->setFieldValue($page, $fconfig, $field, $fdata, $overwrite);
+        $ret = $this->setFieldValue($page, $fconfig, $field, $fdata, in_array($field, $overwrite));
       }
       if ($ret === false) return false;
     }
