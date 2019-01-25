@@ -256,22 +256,50 @@ class DataSetCsvProcessor extends WireData implements Module {
           }
           $value = trim($csv_data[$column], "\"'\t\n\r\0\x0B");
 
-        } elseif (is_array($column)) { // a set of columns from the input
-          // if the column is an array then its elements can be column IDs and strings
-          // compose the value from several columns and glue strings
-          $value = '';
-          foreach ($column as $col) {
-            if (is_string($col)) $value .= $col; // a glue string between column values
-            else if (is_numeric($col)) {  // a column ID, get its data
-              if (!isset($csv_data[$col])) {  // empty input data and no defaults
-                $this->error("ERROR: column '{$col}' for field '{$field}' not found in the input and no default value has been set for that CSV column.");
-                continue 3; // go to the next record in the input
+        } elseif (is_array($column)) {
+          // if the column is an array then
+          // 1. It could be a request to merge multiple columns together
+          //    In this case $column is a simple (indexed) array
+          //    where elements can be column IDs and strings glued to them
+          //    the final value will be composed from several columns and glue strings
+          //    Examle: [ 'The page title is ', 4, '.' ]  (4 is a numeric column ID)
+          // 2. It can specify column types that require special import methods
+          //    In this case $column is an associative array
+          //    where the 1st element is the data type and the rest are the arguments to the import
+          //    valid scenarios are
+          //    An array: import several values into the field
+          //      { "type": "array", "separator": "|", "column": <column ID> }
+
+          if (isset($column['type'])) {
+            switch($column['type']) {
+              case 'array':
+                if (isset($column['separator'])) $asep = $column['separator']; else $asep='|';
+                if (!isset($column['column'])) {
+                  $this->error("ERROR: '{$colum}' for field '{$field}' contains no column ID.");
+                  break 3; // stop processing records, the error needs to be fixed
+                }  
+                $value = explode($asep, $csv_data[$column['column']]);
+                break;
+              default:
+                $this->error("ERROR: column type '{$column['type']}' for field '{$field}' is invalid.");
+                break 3; // stop processing records, the error needs to be fixed
+            }
+            $this->message("Column {$column['column']} is interpreted as '{$column['type']}'.", Notice::debug);
+          } else {
+            $value = '';
+            foreach ($column as $col) {
+              if (is_string($col)) $value .= $col; // a glue string between column values
+              else if (is_numeric($col)) {  // a column ID, get its data
+                if (!isset($csv_data[$col])) {  // empty input data and no defaults
+                  $this->error("ERROR: column '{$col}' for field '{$field}' not found in the input and no default value has been set for that CSV column.");
+                  continue 3; // go to the next record in the input
+                }
+                // append the column's value
+                $value .= trim($csv_data[$col], "\"'\t\n\r\0\x0B");
+              } else {
+                $this->error("ERROR: invalid column specifier '{$col}' used in composing a value for field '{$field}'");
+                break 3; // stop processing records, the error needs to be fixed
               }
-              // append the column's value
-              $value .= trim($csv_data[$col], "\"'\t\n\r\0\x0B");
-            } else {
-              $this->error("ERROR: invalid column specifier '{$col}' used in composing a value for field '{$field}'");
-              break 3; // stop processing records, the error needs to be fixed
             }
           }
         } else { // the column is not an integer and not an array
@@ -280,7 +308,7 @@ class DataSetCsvProcessor extends WireData implements Module {
         }
 
         // skip the field if it is empty
-        if (!strlen($value)) continue;
+        if ((is_array($value) && !count($value)) || (is_string($value) && !strlen($value))) continue;
 
         // store the value
         $field_data[$field] = $value;
