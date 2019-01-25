@@ -840,26 +840,35 @@ pages:
     $ret = yaml_parse(self::DEF_IMPORT_OPTIONS);
     $valid_sections = array_keys($ret);
 
+    $yconfig = trim($yconfig);
     // return default values if the config is empty
     if (strlen($yconfig)==0) return $ret;
 
-    // disable decoding PHP code
-    ini_set('yaml.decode_php', 0);
+    if (strpos(' '.$yconfig, '{') == 1) { // JSON config format
+      $config = json_decode($yconfig, true /*assoc*/);
+      if (is_null($config)) {
+        $this->error('Invalid JSON configuration: ' . json_last_error_msg());
+        return false;
+      }
+    } else {  // YAML config format
+      // disable decoding PHP code
+      ini_set('yaml.decode_php', 0);
 
-    // YAML warnings do not cause exceptions
-    // Convert them to exceptions using a custom error handler
-    set_error_handler(function($errno, $errstr, $errfile, $errline, array $errcontext) {
-      throw new \ErrorException($errstr, 0, $errno, $errfile, $errline);
-    }, E_WARNING);
-    try {
-      $config = yaml_parse($yconfig);
-    } catch (\Exception $e) {
-      $this->message($e->getMessage());
+      // YAML warnings do not cause exceptions
+      // Convert them to exceptions using a custom error handler
+      set_error_handler(function($errno, $errstr, $errfile, $errline, array $errcontext) {
+        throw new \ErrorException($errstr, 0, $errno, $errfile, $errline);
+      }, E_WARNING);
+      try {
+        $config = yaml_parse($yconfig);
+      } catch (\Exception $e) {
+        $this->message($e->getMessage());
+        restore_error_handler();
+        return false;
+      }
+
       restore_error_handler();
-      return false;
     }
-
-    restore_error_handler();
 
     if (!is_array($config)) {
       return false;
@@ -885,7 +894,7 @@ pages:
       }
     }
 
-    $this->message("DataSet config '{$yconfig}' was interpreted as ".var_export($ret, true).'.', Notice::debug);
+    // $this->message("DataSet config '{$yconfig}' was interpreted as ".var_export($ret, true).'.', Notice::debug);
 
     return $ret;
   }
