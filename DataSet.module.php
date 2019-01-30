@@ -21,23 +21,26 @@ class DataSet extends WireData implements Module {
   const TAG_OVERWRITE='overwrite'; // merge and overwrite already existing data with new imports
   const TAG_DELETE='delete';  // delete data found in the source
   const TAG_PURGE='purge';    // purge the data set before import
-  const DEF_IMPORT_OPTIONS = '
-name: Default import configuration
-comment: any text
-input:
-  type: csv
-  delimiter: \',\'
-  max_line_length: 2048
-  header: 1
-  enclosure: \'"\'
-csv_data_defaults:
-field_data_defaults:
-fieldmappings:
-  title: 1
-pages:
-  template: basic-page
-  selector: \'title=@title\'
-  ';
+  const DEF_IMPORT_OPTIONS = '{
+  "name": "Default import configuration",
+  "comment": "any text",
+  "input": {
+    "type": "csv",
+    "delimiter": ",",
+    "max_line_length": 2048,
+    "header": 1,
+    "enclosure": "\""
+  },
+  "csv_data_defaults": null,
+  "field_data_defaults": null,
+  "fieldmappings": {
+    "title": 1
+  },
+  "pages": {
+    "template": "basic-page",
+    "selector": "title=@title"
+  }
+}';
 
 /***********************************************************************
  * MODULE SETUP
@@ -833,24 +836,31 @@ pages:
   /**
    * Load and return data set or file configuration.
    * 
+   * TODO the func assumes than json_decode() exists.
+   * 
    * @param $yconfig configuration in YAML form
    * @returns configuration as associative array or false on error
    */
   public function parseConfig($yconfig) {
-    $ret = yaml_parse(self::DEF_IMPORT_OPTIONS);
+    // load the default configuration
+    $ret = json_decode(self::DEF_IMPORT_OPTIONS, true /*assoc*/);
     $valid_sections = array_keys($ret);
 
     $yconfig = trim($yconfig);
     // return default values if the config is empty
     if (strlen($yconfig)==0) return $ret;
 
-    if (strpos(' '.$yconfig, '{') == 1) { // JSON config format
+    if (strpos(' '.$yconfig, '*') == 1) { // JSON config format
       $config = json_decode($yconfig, true /*assoc*/);
       if (is_null($config)) {
         $this->error('Invalid JSON configuration: ' . json_last_error_msg());
         return false;
       }
     } else {  // YAML config format
+      if (!function_exists('yaml_parse')) {
+        $this->error('YAML is not supported on your system. Try to use JSON for configuration.');
+        return false;
+      }
       // disable decoding PHP code
       ini_set('yaml.decode_php', 0);
 
