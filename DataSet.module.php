@@ -788,7 +788,7 @@ pages:
     $this->message("Updating page '{$page->title}'[{$page->id}]", Notice::debug);
 
     // array of field names to overwrite
-    $required_fields = (isset($params['pages']['overwrite']) ? $params['pages']['overwrite'] : array());
+    $overwrite_fields = (isset($params['pages']['overwrite']) ? $params['pages']['overwrite'] : array());
     // array of required field names
     $required_fields = (isset($params['pages']['required_fields']) ? $params['pages']['required_fields'] : array());
 
@@ -958,7 +958,7 @@ pages:
     // the the value is an array, store each member value separately in the field
     if (is_array($value)) {
       foreach ($value as $v) {
-        if (!setFieldValue($page, $fconfig, $field, $value, $overwrite)) return false;
+        if (!$this->setFieldValue($page, $fconfig, $field, $v, $overwrite)) return false;
       }
       return true;
     }
