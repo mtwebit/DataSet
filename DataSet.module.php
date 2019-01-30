@@ -850,8 +850,8 @@ class DataSet extends WireData implements Module {
     // return default values if the config is empty
     if (strlen($yconfig)==0) return $ret;
 
-    if (strpos(' '.$yconfig, '*') == 1) { // JSON config format
-      $config = json_decode($yconfig, true /*assoc*/);
+    if (strpos(' '.$yconfig, 'JSON') == 1) { // JSON config format
+      $config = json_decode(substr($yconfig, 4), true /*assoc*/);
       if (is_null($config)) {
         $this->error('Invalid JSON configuration: ' . json_last_error_msg());
         return false;
