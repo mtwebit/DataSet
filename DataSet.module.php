@@ -72,6 +72,10 @@ class DataSet extends WireData implements Module {
       $this->message('Tasker module is missing.  Install it before using Dataset module.');
       return;
     }
+    if (!$this->modules->isInstalled('TaskerAdmin')) {
+      $this->message('TaskerAdmin module is missing.  Install it before using Dataset module.');
+      return;
+    }
 
     // Installing conditional hooks
     // Note: PW < 3.0.62 has a bug and needs manual fix for conditional hooks:
@@ -84,7 +88,7 @@ class DataSet extends WireData implements Module {
       // append Javascript functions
       $this->config->scripts->add($this->config->urls->siteModules . 'DataSet/DataSet.js');
       $this->config->styles->add($this->config->urls->siteModules . 'DataSet/DataSet.css');
-      $taskerAdmin = wire('modules')->get('TaskerAdmin');
+      $taskerAdmin = $this->modules->get('TaskerAdmin');
       $this->adminUrl = $taskerAdmin->adminUrl;
       // make settings available for Javascript functions
       $this->config->js('tasker', [
