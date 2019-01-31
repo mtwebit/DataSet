@@ -13,14 +13,7 @@
  
 class DataSet extends WireData implements Module {
   // the base URL of the module's admin page
-  public $adminUrl; //  = wire('config')->urls->admin.'page/datasets/'
   private $redirectUrl = '';
-  // file tags TODO remove them
-  const TAG_IMPORT='import';  // import data from sources
-  const TAG_MERGE='merge';    // merge new data with already existing data
-  const TAG_OVERWRITE='overwrite'; // merge and overwrite already existing data with new imports
-  const TAG_DELETE='delete';  // delete data found in the source
-  const TAG_PURGE='purge';    // purge the data set before import
   const DEF_IMPORT_OPTIONS = '{
   "name": "Default import configuration",
   "comment": "any text",
@@ -89,11 +82,10 @@ class DataSet extends WireData implements Module {
       $this->config->scripts->add($this->config->urls->siteModules . 'DataSet/DataSet.js');
       $this->config->styles->add($this->config->urls->siteModules . 'DataSet/DataSet.css');
       $taskerAdmin = $this->modules->get('TaskerAdmin');
-      $this->adminUrl = $taskerAdmin->adminUrl;
       // make settings available for Javascript functions
       $this->config->js('tasker', [
-        'adminUrl' => $this->adminUrl,
-        'apiUrl' => $this->adminUrl . 'api/',
+        'adminUrl' => $taskerAdmin->adminUrl,
+        'apiUrl' => $taskerAdmin->adminUrl . 'api/',
         'timeout' => 1000 * intval(ini_get('max_execution_time'))
       ]);
     }
@@ -104,48 +96,6 @@ class DataSet extends WireData implements Module {
 /***********************************************************************
  * HOOKS
  **********************************************************************/
-
-  /** TODO remove
-   * Hook that creates a task to process the sources
-   * Note: it is called several times when the change occurs.
-   */
-  public function handleSourceChange(HookEvent $event) {
-    // return when we could not detect a real change
-    if (! $event->arguments(1) instanceOf Pagefiles) return;
-    $dataSetPage = $event->object;
-    // create the necessary tasks and add them to the page after it is saved.
-    $event->addHookAfter("Pages::saved($dataSetPage)",
-      function($event) use($dataSetPage) {
-        $this->createTasksOnPageSave($dataSetPage);
-        $event->removeHook(null);
-      });
-  }
-
-  /** TODO remove
-   * Hook that validates configuration changes
-   */
-  public function validateConfigChange(HookEvent $event) {
-    $field = $event->object;
-    if (!is_object($field)) return;
-
-    if ($field->name != $this->configfield) return;
-
-    $page = $this->modules->ProcessPageEdit->getPage();
-
-    $event->message("Field '{$field->name}' changed on '{$page->title}'.", Notice::debug);
-
-    if (strlen($field->value)<3) return;
-
-    $dataSetConfig = $this->parseConfig($field->value);
-    if (false === $dataSetConfig) {
-      $event->error("Invalid data set confguration in field '{$field}'.");
-      return;
-    }
-
-    $event->message('Data set configuration seems to be OK.');
-    $event->message('Config: '.print_r($dataSetConfig, true), Notice::debug);
-  }
-
 
   /**
    * Hook that adds buttons and handling functions to dataset source files
@@ -219,81 +169,6 @@ class DataSet extends WireData implements Module {
     </ul>';
     else $event->return .= '
       '.wire('modules')->get('TaskerAdmin')->renderTaskList('title='.$taskTitle, '', ' target="_blank"');
-  }
-
-
-/***********************************************************************
- * TASK MANAGEMENT
- **********************************************************************/
-
-  /** TODO remove
-   * Create necessary tasks when the page is ready to be saved
-   * 
-   * @param $dataSetPage ProcessWire Page object
-   */
-  public function createTasksOnPageSave($dataSetPage) {
-    // check if any file needs to be handled
-    $files = $dataSetPage->{$this->sourcefield}->find('tags*='.self::TAG_IMPORT.'|'.self::TAG_MERGE.'|'.self::TAG_OVERWRITE.'|'.self::TAG_PURGE.'|'.self::TAG_DELETE);
-    if ($files->count()==0) return;
-
-    $this->message('Data set source has changed. Creating background jobs to check the changes.', Notice::debug);
-
-    // constructing tasks
-    // these could be long running progs so we can't execute them right now
-    // Tasker module is here to help
-    $tasker = $this->modules->get('Tasker');
-
-    $firstTask = $prevTask = NULL;
-    $data = array(); // task data
-
-    // if purge was requested on any file then purge the data set before any import occurs
-    foreach ($files as $file) if ($file->hasTag(self::TAG_PURGE)) {
-      $purgeTask = $tasker->createTask(__CLASS__, 'purge', $dataSetPage, 'Purge the data set', $data);
-      if ($purgeTask == NULL) return; // tasker failed to add a task
-      $data['dep'] = $purgeTask->id; // add a dependency to import tasks: first delete old entries
-      $firstTask = $prevTask = $purgeTask;
-      $this->message("Created a task to purge data set before import.", Notice::debug);
-    }
-
-    // create an import task for each input file
-    foreach ($files as $name => $file) {
-      $data['file'] = $name;
-      $title = 'Process data found in '.$name;
-      if (!$file->hasTag(self::TAG_IMPORT.'|'.self::TAG_MERGE.'|'.self::TAG_OVERWRITE.'|'.self::TAG_DELETE)) {
-        continue; // no import, no update, no delete - skip this file
-      }
-      $task = $tasker->createTask(__CLASS__, 'import', $dataSetPage, 'Process data from '.$name, $data);
-      if ($task == NULL) return; // tasker failed to add a task
-      // add this task as a follow-up to the previous task
-      if ($prevTask != NULL) $tasker->addNextTask($prevTask, $task);
-      $prevTask = $task;
-      if ($firstTask == NULL) $firstTask = $task;
-    }
-
-    $tasker->activateTask($firstTask); // activate the first task
-
-    // if TaskedAdmin is installed, redirect to its admin page for task execution
-    if ($this->modules->isInstalled('TaskerAdmin')) {
-      $taskerAdmin = $this->modules->get('TaskerAdmin');
-      $this->redirectUrl = $taskerAdmin->adminUrl.'?id='.$firstTask->id.'&cmd=run';
-      // add a temporary hook to redirect to TaskerAdmin's monitoring page after saving the current page
-      $this->pages->addHookBefore('ProcessPageEdit::processSaveRedirect', $this, 'runDataSetTasks');
-    }
-
-    return;
-  }
-
-  /** TODO remove
-   * Hook that redirects the user to the tasker admin page
-   */
-  public function runDataSetTasks(HookEvent $event) {
-    if ($this->redirectUrl != '') {
-      // redirect on page save
-      $event->arguments = array($this->redirectUrl);
-      $this->redirectUrl = '';
-    }
-    // redirect is done or not needed, remove this hook
-    $event->removeHook(null);
   }
 
 
@@ -400,103 +275,6 @@ class DataSet extends WireData implements Module {
     return true;
   }
 
-
-  /** TODO old version, remove
-   * Import a data set - a Tasker task
-   * 
-   * @param $dataSetPage ProcessWire Page object (the root of the data set)
-   * @param $taskData task data assoc array
-   * @param $params runtime paramteres, e.g. timeout, dryrun, estimation and task object
-   * @returns false on error, a result message on success
-   * The method also alters elements of the $taskData array.
-   */
-  public function importOLD($dataSetPage, &$taskData, $params) {
-    $dataSetConfig = $this->parseConfig($dataSetPage->{$this->configfield});
-    if ($dataSetConfig===false) {
-      $this->error("ERROR: invalid data set configuration on page '{$dataSetPage->title}'.");
-      return false;
-    }
-
-    // get a reference to Tasker and the task
-    $tasker = wire('modules')->get('Tasker');
-    $task = $params['task'];
-
-    // check if we still have the file and its tag
-    $file=$dataSetPage->{$this->sourcefield}->findOne('name='.$taskData['file'].',tags*='.self::TAG_IMPORT.'|'.self::TAG_MERGE.'|'.self::TAG_OVERWRITE.'|'.self::TAG_DELETE);
-    if ($file==NULL) {
-      $this->error("ERROR: input file '".$taskData['file']."' is not present or it has no IMPORT tags on Page '{$dataSetPage->title}'.");
-      $this->warning("Moving task '{$task->title}' to the trash.");
-      $task->trash();
-      return false;
-    }
-
-    // process the file configuration stored in the description field
-    $fileConfig = $this->parseConfig($file->description);
-    // and add it to the parameter set
-    $params['input'] = $fileConfig['input'];
-    $params['pages'] = $fileConfig['pages'];
-    $params['fieldmappings'] = $fileConfig['fieldmappings'];
-
-    $ctype = mime_content_type($file->filename);
-
-    // select the appropriate input processor
-    // They should support two methods:
-    // * $proc->count($resource, $params) - returns the maximum number of processable records
-    // * $proc->process($page, $resource, $taskData, $params) - process the input resource
-    switch($fileConfig['input']['type']) {
-    case 'xml':
-      // try to validate the content type when the task starts
-      if (!$taskData['records_processed'] && $ctype != 'xml') {
-        $this->warning("WARNING: content type of {$fileConfig['name']} is not {$fileConfig['input']['type']} but {$ctype}. Processing anyway.");
-      }
-      $proc = $this->modules->getModule('DataSetXmlProcessor');
-      break;
-    case 'csv':
-      // try to validate the content type when the task starts
-      if (!$taskData['records_processed'] && !strpos($ctype, 'csv')) {
-        $this->warning("WARNING: content type of {$fileConfig['name']} is not {$fileConfig['input']['type']} but {$ctype}. Processing anyway.");
-      }
-      $proc = $this->modules->getModule('DataSetCsvProcessor');
-    // TODO case 'application/json':
-    // TODO case 'application/sql':
-       break;
-    default:
-      $this->error("ERROR: content type {$fileConfig['input']['type']} ({$ctype}) is not supported.");
-      return false;
-    }
-
-    // initialize task data if this is the first invocation
-    if ($taskData['records_processed'] == 0) {
-      // estimate the number of processable records
-      $taskData['max_records'] = $proc->countRecords($file, $params);
-      $taskData['records_processed'] = 0;
-      $taskData['task_done'] = 0;
-      $taskData['offset'] = 0;    // file offset
-    }
-
-    if ($taskData['max_records'] == 0) { // empty file?
-      $taskData['task_done'] = 1;
-      $this->message('Import is done (input is empty).');
-      return true;
-    }
-
-    $this->message("Processing file {$file->name}.", Notice::debug);
-
-    // import the data set from the file using the appropriate input processor
-    $ret = $proc->process($dataSetPage, $file, $taskData, $params);
-    if ($ret === false) return false;
-
-    // check if the file has been only partially processed (e.g. due to max exec time is reached)
-    if ($taskData['records_processed'] == $taskData['max_records']) {
-      $taskData['task_done'] = 1;
-      $this->message($taskData['file'].' has been processed.');
-    } elseif (isset($params['input']['limit']) && $taskData['records_processed'] == $params['input']['limit']) {
-      $taskData['task_done'] = 1;
-      $this->message($taskData['file'].' has been partially processed due to a limit='.$params['input']['limit'].' parameter.');
-    } 
-
-    return true;
-  }
 
   /**
    * Purge the entire data set by removing all its child nodes
@@ -687,7 +465,6 @@ class DataSet extends WireData implements Module {
       return false;
     }
 
-    // TODO do we need this here?
     $page->of(false); // set output formatting off
 
     $page->parent = $parent;
@@ -722,22 +499,6 @@ class DataSet extends WireData implements Module {
         return false;
       }
     }
-
-// TODO multi-language support for pages?
-/*
-    //foreach ($this->languages as $lang) {
-    $langs = $page->getLanguages();
-    if (count($langs)) foreach ($page->getLanguages() as $lang) {
-      $page->title->setLanguageValue($lang, $field_data['title']);
-    } else $page->title = $field_data['title'];
-
-    if (count($fields)) foreach ($fields as $field => $value) {
-      // if ($page->hasField($field)) $page->$field = $value;
-      if (count($langs)) foreach ($page->getLanguages() as $lang) {
-        $page->{$field}->setLanguageValue($lang, $value);
-      } else $page->set($field, $value);
-    }
-*/
 
     try {
       // pages must be saved now to add external resources to fields
@@ -1007,6 +768,9 @@ class DataSet extends WireData implements Module {
     } else {
       $hasValue = $page->$field ? true : false;
     }
+
+// TODO multi-language support for certain fields?
+//  $page->$field->setLanguageValue($lang, $value);
 
     if ($overwrite) {
       $this->message("Overwriting field '{$field}''s old value with '{$value}'.", Notice::debug);
