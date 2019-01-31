@@ -164,7 +164,7 @@ class DataSet extends WireData implements Module {
 
     // parse the config
     $fileConfig = $this->parseConfig($pagefile->description);
-    if (!$fileConfig) {
+    if ($fileConfig === false) {
       $event->return .= '<div>DataSet configuration is invalid.</div>';
       return;
     }
@@ -201,7 +201,7 @@ class DataSet extends WireData implements Module {
 
     // parse the config
     $dsConfig = $this->parseConfig($field->value);
-    if (!$dsConfig) {
+    if ($dsConfig === false) {
       $event->return .= '<div>DataSet config is invalid.</div>';
       return;
     }
@@ -326,6 +326,11 @@ class DataSet extends WireData implements Module {
 
     // process the file configuration stored in the description field
     $fileConfig = $this->parseConfig($file->description);
+    if ($fileConfig === false) {
+      $this->error("ERROR: invalid data set configuration on page '{$dataSetPage->title}'.");
+      return false;
+    }
+
     // and add it to the parameter set
     foreach ($fileConfig as $key => $value) {
       $params[$key] = $value;
