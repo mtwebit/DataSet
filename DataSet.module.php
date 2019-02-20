@@ -484,43 +484,27 @@ class DataSet extends WireData implements Module {
       if ($field == 'title') continue; // already set
       if (!$pt->hasField($field)) {
         $this->error("ERROR: template '{$template}' has no field named '{$field}'.");
-        $page->delete();
+        $page->delete();  // delete the partially created page
         return false;
       }
 
       // get the field config
       $fconfig = $pt->fields->get($field);
 
-      // set the field's value
-      if (!$this->setFieldValue($page, $fconfig, $field, $value)
-          && in_array($field, $required_fields)) {
-        $this->error("ERROR: could not set the value for required field '{$field}'.");
-        $page->delete();
-        return false;
+      // set and store the field's value
+      if (!$this->setFieldValue($page, $fconfig, $field, $value)) {
+        // this is a fatal error if the field is required
+        if (in_array($field, $required_fields)) {
+          $this->error("ERROR: could not set the value of a required field '{$field}'.");
+          $page->delete();  // delete the partially created page
+          return false;
+        } else {
+          $this->message("'{$field}' is not required. Continuing...", Notice::debug);
+        }
       }
     }
 
-    try {
-      // pages must be saved now to add external resources to fields
-      if (!$page->save()) {
-        $this->error("ERROR: error saving field data for page '{$field_data['title']}'.");
-        $page->delete();
-        return false;
-      }
-      // Notice: sometimes save() will return true (and the page will be saved)
-      // but some fields won't be stored correctly (e.g. an SQL error happens).
-      // $config->allowExceptions = true is needed to detect this kind of errors.
-      // Tasker will enforce this setting but other methods may not.
-    } catch (\Exception $e) {
-      // Delete the partially saved page.
-      $page->delete();
-      // TODO very long page titles may cause problems while saving the page
-      // "Unable to generate unique name for page 0"
-      $this->error("ERROR: error saving field data for page '{$field_data['title']}'.");
-      $this->error($e->getMessage());
-      return false;
-    }
-    // $this->message("{$parent->title} / {$page->title} [{$template}] created.", Notice::debug);
+    $this->message("{$parent->title} / {$page->title} [{$page->template}] has been created.", Notice::debug);
 
     return $page;
   }
@@ -546,12 +530,6 @@ class DataSet extends WireData implements Module {
     // check if there is anything to update
     if (!is_array($field_data) || !count($field_data)) return true;
 
-    // check the page title
-    if (!is_string($field_data['title']) || mb_strlen($field_data['title'])<2) {
-      $this->error("ERROR: error updating page because its title is invalid.");
-      return false;
-    }
-
     if ($page->template != $template) {
       $this->error("ERROR: error updating page because its template does not match.");
       return false;
@@ -561,6 +539,7 @@ class DataSet extends WireData implements Module {
     $this->message("Updating page '{$page->title}'[{$page->id}]", Notice::debug);
 
     // array of field names to overwrite
+    // TODO this may not work
     $overwrite_fields = (isset($params['pages']['overwrite']) ? $params['pages']['overwrite'] : array());
     // array of required field names
     $required_fields = (isset($params['pages']['required_fields']) ? $params['pages']['required_fields'] : array());
@@ -575,26 +554,20 @@ class DataSet extends WireData implements Module {
       // get the field config
       $fconfig = $pt->fields->get($field);
 
-      // set the field's value
-      if (!$this->setFieldValue($page, $fconfig, $field, $value, in_array($field, $overwrite_fields))
-          && in_array($field, $required_fields)) {
-        $this->error("ERROR: could not set the value for required field '{$field}'.");
-        return false;
+      // set and save the field's value
+      if (!$this->setFieldValue($page, $fconfig, $field, $value, in_array($field, $overwrite_fields))) {
+        // this is a fatal error if the field is required
+        if (in_array($field, $required_fields)) {
+          $this->error("ERROR: could not set the value of a required field '{$field}'.");
+          // TODO rollback to the page's old state?
+          return false;
+        } else {
+          $this->message("'{$field}' is not required. Continuing...", Notice::debug);
+        }
       }
     }
 
-    try {
-      if (!$page->save()) {
-        $this->error("ERROR: error saving modified page '{$page->title}'.");
-      }
-    } catch (\Exception $e) {
-      // TODO very long page titles may cause problems while saving the page
-      // "Unable to generate unique name for page 0"
-      $this->error("ERROR: error saving modified page '{$page->title}'.");
-      $this->error($e->getMessage());
-      return false;
-    }
-    // $this->message("{$page->title} [{$template}] updated.", Notice::debug);
+    $this->message("{$page->title} [{$page->template}] has been updated.", Notice::debug);
 
     return $page;
   }
@@ -777,16 +750,44 @@ class DataSet extends WireData implements Module {
     if ($overwrite) {
       $this->message("Overwriting field '{$field}''s old value with '{$value}'.", Notice::debug);
       $page->$field = $value;
-    } else if (!$hasValue) {
+      return $this->saveField($page, $field, $value);
+    }
+    if (!$hasValue) {
       if ($page->$field && $page->$field instanceof WireArray && $page->$field->count()) {
         $this->message("Adding new value '{$value}' to field '{$field}'.", Notice::debug);
         $page->$field->add($value);
-      } else {
-        $this->message("Setting field '{$field}' = '{$value}'.", Notice::debug);
-        $page->$field = $value;
+        return $this->saveField($page, $field, $value);
       }
-    } else {
-      $this->message("WARNING: not updating already populated field '{$field}'.", Notice::debug);
+      $this->message("Setting field '{$field}' = '{$value}'.", Notice::debug);
+      $page->$field = $value;
+      return $this->saveField($page, $field, $value);
+    }
+    $this->message("WARNING: not updating already populated field '{$field}'.", Notice::debug);
+    return false;
+  }
+
+
+  /**
+   * Store a field value
+   * 
+   * @param $page PW Page that holds the field
+   * @param $field field name
+   * @param $value field value to set
+   * @returns true on success, false on failure
+   */
+  public function saveField($page, $fieldname, $value) {
+    try {
+      if (!$page->save($fieldname)) {
+        $this->error("ERROR: could not set field '{$fieldname}' = '{$value}' on page '{$page->title}'.");
+        return false;
+      }
+      // Notice: sometimes save() will return true but the field won't be stored correctly
+      // (e.g. an SQL error happens).
+      // $config->allowExceptions = true is needed to detect this kind of errors.
+      // Tasker will enforce this setting but other callers may not.
+    } catch (\Exception $e) {
+      $this->error("ERROR: got an exception while setting field '{$fieldname}' = '{$value}' on page '{$page->title}': ".$e->getMessage().'.');
+      return false;
     }
     return true;
   }
