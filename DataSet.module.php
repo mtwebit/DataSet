@@ -259,7 +259,7 @@ class DataSet extends WireData implements Module {
     $ret = $proc->process($dataSetPage, $file, $taskData, $params);
 
     // save the progress before returning (for this time)
-    $tasker->saveProgress($task, $taskData);
+    $tasker->saveProgress($task, $taskData, false, false);
 
     if ($ret === false) return false;
 
