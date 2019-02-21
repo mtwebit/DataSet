@@ -418,9 +418,8 @@ class DataSet extends WireData implements Module {
       }
     }
 
-    $this->message("No content found matching the '{$selector}' selector. Trying to import the data as new...", Notice::debug);
-
     if (!isset($params['pages']['skip_new'])) { // create a new page if needed
+      $this->message("No content found matching the '{$selector}' selector. Trying to import the data as new...", Notice::debug);
       return $this->createPage($dataSetPage, $params['pages']['template'], $field_data, $params);
     } else {
       $this->error('WARNING: not importing '.str_replace("\n", " ", print_r($field_data, true))
@@ -482,11 +481,14 @@ class DataSet extends WireData implements Module {
 
     if (count($field_data)) foreach ($field_data as $field => $value) {
       if ($field == 'title') continue; // already set
+
       if (!$pt->hasField($field)) {
         $this->error("ERROR: template '{$template}' has no field named '{$field}'.");
         $page->delete();  // delete the partially created page
         return false;
       }
+
+      $this->message("Processing data for field '{$field}'.", Notice::debug);
 
       // get the field config
       $fconfig = $pt->fields->get($field);
@@ -495,7 +497,7 @@ class DataSet extends WireData implements Module {
       if (!$this->setFieldValue($page, $fconfig, $field, $value)) {
         // this is a fatal error if the field is required
         if (in_array($field, $required_fields)) {
-          $this->error("ERROR: could not set the value of a required field '{$field}'.");
+          $this->error("ERROR: could not set the value of the required field '{$field}'.");
           $page->delete();  // delete the partially created page
           return false;
         } else {
@@ -504,7 +506,7 @@ class DataSet extends WireData implements Module {
       }
     }
 
-    $this->message("{$parent->title} / {$page->title} [{$page->template}] has been created.", Notice::debug);
+    $this->message("{$parent->title} / {$page->title} [ID #{$page->id}, template: {$page->template}] has been created.", Notice::debug);
 
     return $page;
   }
@@ -551,6 +553,8 @@ class DataSet extends WireData implements Module {
         return false;
       }
 
+      $this->message("Processing data for field '{$field}'.", Notice::debug);
+
       // get the field config
       $fconfig = $pt->fields->get($field);
 
@@ -567,7 +571,7 @@ class DataSet extends WireData implements Module {
       }
     }
 
-    $this->message("{$page->title} [{$page->template}] has been updated.", Notice::debug);
+    $this->message("{$page->title} [ID #{$page->id}, template: {$page->template}] has been updated.", Notice::debug);
 
     return $page;
   }
