@@ -10,7 +10,7 @@
 function DataSet(command, pageid, title, pathname, fileid) {
   var taskerAdminUrl = ProcessWire.config.tasker.adminUrl,
       taskerAdminApiUrl = ProcessWire.config.tasker.apiUrl,
-      timeout = 150,
+      timeout = 2000,
       unloading = false,
       progressLabel = $('#dataset_file_' + fileid + ' span'),
       args = encodeURI('module=DataSet&function=' + command + '&pageId=' + pageid + '&title=' + title + '&file=' + pathname);
@@ -31,7 +31,7 @@ function DataSet(command, pageid, title, pathname, fileid) {
       dataType: "json",
       url: url,
       success: callback,
-//      timeout: timeout,
+      timeout: timeout,
       error: function(jqXHR, status, errorThrown) {
         if (status == 'timeout') {
 	  progressLabel.text('Request timeout. Please check the backend for more info.');
@@ -47,9 +47,9 @@ function DataSet(command, pageid, title, pathname, fileid) {
   // callback for task creation
   function createCallback(data) {
     if (data['status']) { // return status is OK
-			progressLabel.text('Task "' + title + '" has been created.');
-			// start the task now
-			performApiCall(taskerAdminApiUrl + '/?cmd=start&id=' + data['taskid'], startCallback);
+      progressLabel.text('Task "' + title + '" has been created.');
+      // start the task now
+      performApiCall(taskerAdminApiUrl + '/?cmd=start&id=' + data['taskid'], startCallback);
     } else { // return status is not OK
       progressLabel.text('Error: ' + data['result']);
     }
@@ -58,8 +58,8 @@ function DataSet(command, pageid, title, pathname, fileid) {
   // callback for task activation
   function startCallback(data) {
     if (data['status']) { // return status is OK
-			progressLabel.html('Task "' + title + '" has been started.'
-			  + '. <a href="' + taskerAdminUrl + '" target="_blank">Check status</a>');
+      progressLabel.html('Task "' + title + '" has been started.'
+        + '. <a href="' + taskerAdminUrl + '" target="_blank">Check status</a>');
     } else { // return status is not OK
       progressLabel.text('Error: ' + data['result']);
     }
