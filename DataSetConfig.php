@@ -17,7 +17,7 @@ class DataSetConfig extends ModuleConfig {
     return array(
       'sourcefield' => 'sourcefield',
       'configfield' => 'configfield',
-      'dataset_templates' => 'dataset',
+      'datasetTemplates' => 'dataset',
     );
   }
 
@@ -44,7 +44,7 @@ class DataSetConfig extends ModuleConfig {
     $fieldset->label = __('Template Setup');
 
     $f = $this->modules->get('InputfieldSelectMultiple');
-    $f->attr('name', 'dataset_templates');
+    $f->attr('name', 'datasetTemplates');
     $f->label = 'Data set templates';
     $f->description = __('These are the root elements of data sets. They should contain a source and a config field.');
     $f->options = array();

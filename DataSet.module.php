@@ -34,6 +34,12 @@ class DataSet extends WireData implements Module {
     "selector": "title=@title"
   }
 }';
+  private $myFields = array(
+    'title' => array('type' => 'FieldtypePageTitle', 'Label' => 'Title'),
+    'dataset_config' => array('type' => 'FieldtypeTextarea', 'Label' => 'DataSet global config'),
+    'dataset_source_files' => array('type' => 'FieldtypeFile', 'Label' => 'DataSet source files')
+  );
+
 
 /***********************************************************************
  * MODULE SETUP
@@ -44,6 +50,60 @@ class DataSet extends WireData implements Module {
    * 
    */
   public function ___install() {
+   // check / add fieldgroup
+    $fg = $this->fieldgroups->get('dataset-fieldgroup');
+    if (!@$fg->id) {
+      $fg = new Fieldgroup();
+      $fg->name = 'dataset-fieldgroup';
+      $fg->add($this->fields->get('title'));
+      $field->tags = 'DataSet';
+      $fg->save();
+    }
+
+    // check / add DataSet template
+    $t = $this->templates->get('dataset');
+    if (!$t) {
+      $t = new Template();
+      $t->name = 'dataset';
+      $t->label = 'DataSet';
+      $t->tags = 'DataSet';
+      $t->noLang = true;
+      $t->fieldgroup = $fg; // set the field group
+      $t->noChildren = 1;
+      $t->setIcon('fa-database');
+      $t->save();
+    }
+
+    // create and add required fields
+    foreach ($this->myFields as $fname => $fcdata) {
+      $field = $this->fields->get($fname);
+      if (!@$field->id) {
+        $field = new Field();
+        $field->name = $fname;
+        $field->label = $fcdata['label'];
+        $field->type = $this->modules->get($fcdata['type']);
+	if ($fcdata['type'] == 'FieldtypeFile') {
+          $field->description = 'The file\'s description field should contain import rules in YAML or JSON format.';
+          // $field->required = 1;
+          // $field->attr("name+id", 'myimages');
+	  // $field->destinationPath = $upload_path;
+	  $field->extensions = 'csv xml';
+          $field->maxFiles = 0;
+	  // $field->maxFilesize = 20*1024*1024; // 20 MiB
+          $field->setIcon('fa-archive');
+	  // TODO how to set these?
+          // $field->overwrite = 1;
+          // $field->file descriptions...rows = 15;
+        }
+        if ($fname != 'title') $field->tags = 'DataSet';
+        $field->save();
+      }
+      if (!$fg->hasField($field)) $fg->add($field);
+    }
+
+    // save the fieldgroup
+    $fg->save();
+
   }
 
 
@@ -52,6 +112,26 @@ class DataSet extends WireData implements Module {
    * 
    */
   public function ___uninstall() {
+    // Delete the automatically created template if no content present
+    if (!$this->pages->count('template=dataset,include=hidden')) {
+      $t = $this->templates->get('dataset');
+      if ($t) {
+        $this->templates->delete($t);
+      }
+      // TODO other templates may use the fg
+      $fg = $this->fieldgroups->get('dataset-fieldgroup');
+      if (@$fg->id) {
+        $this->fieldgroups->delete($fg);
+      }
+      foreach ($this->myFields as $fname => $fcdata) {
+        $field = $this->fields->get($fname);
+        if ($field) {
+          if ($field->numFieldgroups() > 0) continue;
+          if (@$field->getTemplates()->count() > 0) continue;
+          $this->fields->delete($field);
+        }
+      }
+    }
   }
 
 
@@ -73,7 +153,7 @@ class DataSet extends WireData implements Module {
     // Installing conditional hooks
     // Note: PW < 3.0.62 has a bug and needs manual fix for conditional hooks:
     // https://github.com/processwire/processwire-issues/issues/261
-    if (is_array($this->dataset_templates)) foreach ($this->dataset_templates as $t) {
+    if (is_array($this->datasetTemplates)) foreach ($this->datasetTemplates as $t) {
       // hook to add import buttons to the input field for datasets
       $this->addHookAfter('InputfieldFile(name='.$this->sourcefield.')::renderItem', $this, 'addFileActionButtons');
       // hook to add purge button to the global dataset options
@@ -266,10 +346,10 @@ class DataSet extends WireData implements Module {
     // check if the file has been only partially processed (e.g. due to max exec time is reached)
     if ($taskData['records_processed'] == $taskData['max_records']) {
       $taskData['task_done'] = 1;
-      $this->message($taskData['file'].' has been processed.');
+      $this->message(basename($taskData['file']).' has been processed.');
     } elseif (isset($params['input']['limit']) && $taskData['records_processed'] == $params['input']['limit']) {
       $taskData['task_done'] = 1;
-      $this->message($taskData['file'].' has been partially processed due to a limit='.$params['input']['limit'].' parameter.');
+      $this->message(basename($taskData['file']).' has been partially processed due to a limit='.$params['input']['limit'].' parameter.');
     } 
 
     return true;
