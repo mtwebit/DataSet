@@ -738,7 +738,7 @@ class DataSet extends WireData implements Module {
       // check whether we have the same file or the field may only contain a single value
       $this->message('Checking file/image field: maxfiles = '.$fconfig->get('maxFiles').', filecount = '.$page->$field->count(), Notice::debug);
       $hasValue = $page->$field->has($value) || ($page->$field && ($fconfig->get('maxFiles') == 1) && ($page->$field->count() > 0));
-    } elseif (is_numeric($value) && $fconfig->type instanceof FieldtypeOptions) {   // Numeric options
+    } elseif ($fconfig->type instanceof FieldtypeOptions) {   // Numeric options
       // if the value is numeric we can't use it as a field value on options fields
       // See https://processwire.com/api/modules/select-options-fieldtype/#manipulating-options-on-a-page-from-the-api
       // So... replace $value with an option ID if possible
