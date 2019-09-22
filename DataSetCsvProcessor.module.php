@@ -336,7 +336,7 @@ class DataSetCsvProcessor extends WireData implements Module {
           }
           if ($fconfig->type instanceof FieldtypePage) {
             $pageSelector = $this->modules->DataSet->getPageSelector($fconfig, $field_data[$field]);
-            $svalue = $this->pages->findOne($pageSelector.',check_access=0');
+            $svalue = $this->pages->get($pageSelector); // do not check for access and published status
             if ($svalue === NULL || $svalue instanceof NullPage) {
               $this->warning("WARNING: Could not find referenced page {$value} for field {$field}.");
               continue;

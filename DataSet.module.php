@@ -803,8 +803,8 @@ class DataSet extends WireData implements Module {
     if ($fconfig->type instanceof FieldtypePage) {    // Page reference
       $selector = $this->getPageSelector($fconfig, $value);
       $this->message("Page selector @ field {$field}: {$selector}.", Notice::debug);
-      $refpage = $this->pages->findOne($selector.',check_access=0');
-      if ($refpage instanceof Page && ($refpage->id > 0)) {
+      $refpage = $this->pages->get($selector);  // do not check for access and published status
+      if ($refpage->id) {
         $this->message("Found referenced page '{$refpage->title}' for field '{$field}' using the selector '{$selector}'.", Notice::debug);
         $value = $refpage->id;
         $hasValue = ($page->$field ? $page->$field->has($selector) : false);
@@ -909,7 +909,7 @@ class DataSet extends WireData implements Module {
     if ($fileProto == 'wire') {
       $pageId = $urlparts['host'];
       $page = $this->pages->get($pageId);
-      if ($page instanceof NullPage) {
+      if (!$page->id) {
         $this->error("ERROR: could not find page {$pageId} for file location {$url}.");
         return false;
       }
