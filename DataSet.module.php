@@ -380,7 +380,7 @@ class DataSet extends WireData implements Module {
     $this->message("Purging '{$dataSetPage->title}' using selector '{$selector}'.", Notice::debug);
 
     // calculate the task's actual size
-    $tsize=$this->pages->count($selector);
+    $tsize=$this->pages->count($selector.',check_access=0');
 
     // initialize task data if this is the first invocation
     if ($taskData['records_processed'] == 0) {
@@ -405,7 +405,7 @@ class DataSet extends WireData implements Module {
     // set an initial milestone
     $taskData['milestone'] = $taskData['records_processed'] + 50;
 
-    $children = $this->pages->findMany($selector);
+    $children = $this->pages->findMany($selector.',check_access=0');
 
     $lazy = 10;
 
@@ -487,7 +487,7 @@ class DataSet extends WireData implements Module {
 
     // TODO speed up selectors...
     $selectorOptions = array('getTotal' => false);
-    $dataPage = $dataSetPage->child($selector, $selectorOptions);
+    $dataPage = $dataSetPage->child($selector.',check_access=0', $selectorOptions);
 
     if ($dataPage->id) { // found a page using the selector
       if (isset($params['pages']['merge']) || isset($params['pages']['overwrite'])) {
@@ -803,7 +803,7 @@ class DataSet extends WireData implements Module {
     if ($fconfig->type instanceof FieldtypePage) {    // Page reference
       $selector = $this->getPageSelector($fconfig, $value);
       $this->message("Page selector @ field {$field}: {$selector}.", Notice::debug);
-      $refpage = $this->pages->findOne($selector);
+      $refpage = $this->pages->findOne($selector.',check_access=0');
       if ($refpage instanceof Page && ($refpage->id > 0)) {
         $this->message("Found referenced page '{$refpage->title}' for field '{$field}' using the selector '{$selector}'.", Notice::debug);
         $value = $refpage->id;
@@ -826,6 +826,16 @@ class DataSet extends WireData implements Module {
       $hasValue = ($page->$field ? $page->$field->has($value) : false);
     } else {
       $hasValue = $page->$field ? true : false;
+      // handle datetime formats
+      if ($fconfig->type instanceof FieldtypeDatetime && is_string($value)) {
+        $this->message("Converting '{$value}' to timestamp.", Notice::debug);
+        if (false === \DateTime::createFromFormat('Y-m-d', $value)) {
+          $this->error("WARNING: field '{$field}' contains invalid datatime value '{$value}'.");
+          return false;
+        }
+        // TODO acquire the proper format from the field config
+        $value = $this->datetime->stringToTimestamp($value, 'Y-m-d');
+      }
     }
 
 // TODO multi-language support for certain fields?
