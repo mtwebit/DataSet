@@ -10,15 +10,14 @@
 function DataSet(command, pageid, title, pathname, fileid) {
   var taskerAdminUrl = ProcessWire.config.tasker.adminUrl,
       taskerAdminApiUrl = ProcessWire.config.tasker.apiUrl,
-      timeout = 2000,
+      timeout = 15000,
       unloading = false,
-      progressLabel = $('#dataset_file_' + fileid + ' span'),
+      progressLabel = $('div#dataset_file_' + fileid + ''),
       args = encodeURI('module=DataSet&function=' + command + '&pageId=' + pageid + '&title=' + title + '&file=' + pathname);
 
   // alert(taskerAdminApiUrl + '/?cmd=create&' + args);
 
-  progressLabel.text('Creating a task to ' + command + ' the file...');
-  // progressLabel.replaceWith = 'Creating a task to ' + command + ' the file';
+  progressLabel.text('Creating a task to ' + command + ' the DataSet...');
 
   // signal if the user is leaving the page
   $(window).bind('beforeunload', function() { unloading = true; });
@@ -47,19 +46,7 @@ function DataSet(command, pageid, title, pathname, fileid) {
   // callback for task creation
   function createCallback(data) {
     if (data['status']) { // return status is OK
-      progressLabel.text('Task "' + title + '" has been created.');
-      // start the task now
-      performApiCall(taskerAdminApiUrl + '/?cmd=start&id=' + data['taskid'], startCallback);
-    } else { // return status is not OK
-      progressLabel.text('Error: ' + data['result']);
-    }
-  }
-
-  // callback for task activation
-  function startCallback(data) {
-    if (data['status']) { // return status is OK
-      progressLabel.html('Task "' + title + '" has been started.'
-        + '. <a href="' + taskerAdminUrl + '" target="_blank">Check status</a>');
+      progressLabel.replaceWith(data['status_html']);
     } else { // return status is not OK
       progressLabel.text('Error: ' + data['result']);
     }

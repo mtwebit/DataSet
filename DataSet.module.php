@@ -188,28 +188,27 @@ class DataSet extends WireData implements Module {
 
     // can't perform any actions if the config is empty
     if (strlen($pagefile->description) < 3) {
-      $event->return .= '<div>DataSet config is missing.</div>';
+      $event->return .= '<div>WARNING: DataSet config is missing. Actions are disabled.</div>';
       return;
     }
 
     // parse the config
     $fileConfig = $this->parseConfig($pagefile->description);
     if ($fileConfig === false) {
-      $event->return .= '<div>DataSet configuration is invalid.</div>';
+      $event->return .= '<div>ERROR: DataSet configuration is invalid. Actions are disabled.</div>';
       return;
     }
 
     $tasker = wire('modules')->get('Tasker');
+    // Query by name isn't the best idea
     $taskTitle = 'Import '.$fileConfig['name']." from {$pagefile->name} on page {$pagefile->page->title}";
     $tasks = $tasker->getTasks('title='.$taskTitle);
     if (!count($tasks)) $event->return .= '
-    <ul class="actions DataSetActions" id="dataset_file_'.$id.'" style="display: inline !important;">DataSet
-      <li style="display: inline !important;">
-        <span><a onclick="DataSet(\'import\', \''.$pagefile->page->id.'\', \''.htmlentities($taskTitle).'\', \''.$pagefile->filename.'\', \''.$id.'\')">Import</a>
+    <div class="actions DataSetActions" id="dataset_file_'.$id.'" style="display: inline !important;">
+      DataSet <i class="fa fa-angle-right"></i>
+      <span style="display: inline !important;"><a onclick="DataSet(\'import\', \''.$pagefile->page->id.'\', \''.htmlentities($taskTitle).'\', \''.$pagefile->filename.'\', \''.$id.'\')">Import</a>
          this file</span>
-      </li>
-      <div></div>
-    </ul>';
+    </div>';
     else $event->return .= '
       '.wire('modules')->get('TaskerAdmin')->renderTaskList('title='.$taskTitle, '', ' target="_blank"');
   }
@@ -240,13 +239,11 @@ class DataSet extends WireData implements Module {
     $taskTitle = "Purge dataset on page {$field->hasPage->title}";
     $tasks = $tasker->getTasks('title='.$taskTitle);
     if (!count($tasks)) $event->return .= '
-    <ul class="actions DataSetActions" id="dataset_file_all" style="display: inline !important;">DataSet
-      <li style="display: inline !important;">
-        <span><a onclick="DataSet(\'purge\', \''.$field->hasPage->id.'\', \''.$taskTitle.'\', \'all files\', \'all\')">Purge</a>
+    <div class="actions DataSetActions" id="dataset_file_all" style="display: inline !important;">
+      DataSet <i class="fa fa-angle-right"></i>
+      <span><a onclick="DataSet(\'purge\', \''.$field->hasPage->id.'\', \''.$taskTitle.'\', \'all files\', \'all\')">Purge</a>
         (DANGER: All child nodes with the above template will be removed!)</span>
-      </li>
-      <div></div>
-    </ul>';
+    </div>';
     else $event->return .= '
       '.wire('modules')->get('TaskerAdmin')->renderTaskList('title='.$taskTitle, '', ' target="_blank"');
   }
