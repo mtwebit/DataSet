@@ -331,8 +331,8 @@ class DataSetCsvProcessor extends WireData implements Module {
           // handle page reference selectors
           $fconfig = $ptemplate->fields->get($field);
           if ($fconfig == NULL) {
-            $this->error("ERROR: unable to retrieve configuration for field {$field}.");
-            break 2; // stop processing records, the error needs to be fixed
+            $this->error("ERROR: unable to retrieve configuration for field {$field} on template {$params['pages']['template']}.");
+            return false; // stop processing records, the error needs to be fixed
           }
           if ($fconfig->type instanceof FieldtypePage) {
             $pageSelector = $this->modules->DataSet->getPageSelector($fconfig, $field_data[$field]);
