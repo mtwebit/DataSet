@@ -13,7 +13,7 @@
 
 $info = array(
   'title' => 'DataSet CSV import',
-  'version' => '0.9.1',
+  'version' => '0.9.5',
   'summary' => 'This module provides CSV import functions for DataSet.',
   'href' => 'https://github.com/mtwebit/DataSet',
   'icon' => 'import',
