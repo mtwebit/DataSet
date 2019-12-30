@@ -109,7 +109,7 @@ class DataSetCsvProcessor extends WireData implements Module {
     }
 
     // get a reference to Tasker and the task
-    $tasker = wire('modules')->get('Tasker');
+    $tasker = $this->modules->Tasker;
     $task = $params['task'];
 
     // count and store a few processed records
@@ -187,7 +187,8 @@ class DataSetCsvProcessor extends WireData implements Module {
         break; // ... the loop
       }
 
-      $this->message('Reading record #'.($taskData['records_processed'] + 1).' from the input...', Notice::debug);
+      $tasker->profilerReset();
+      $this->message("\n".$tasker->profilerGetTimestamp().'Reading record #'.($taskData['records_processed'] + 1).' from the input...', Notice::debug);
 
       // fgetcsv() ensures that new lines in fields are processed correctly
       $csv_data = fgetcsv($fd, $params['input']['max_line_length'],
@@ -198,7 +199,7 @@ class DataSetCsvProcessor extends WireData implements Module {
         break; // ... the loop as there is no more data
       }
 
-      // increase the number of processed records and the actual offset counter
+      // increase the number of processed records
       $taskData['records_processed']++;
 
       // check encoding, TODO this is fairly slow, see https://stackoverflow.com/questions/1523460/ensuring-valid-utf-8-in-php
@@ -225,7 +226,7 @@ class DataSetCsvProcessor extends WireData implements Module {
         }
       }
 
-      $this->message('Processing input record: '.implode($params['input']['delimiter'], $csv_data), Notice::debug);
+      $this->message($tasker->profilerGetTimestamp().'Processing input record: '.implode($params['input']['delimiter'], $csv_data), Notice::debug);
 
       // use default values
       if (count($csv_data_defaults)) {
@@ -338,8 +339,13 @@ class DataSetCsvProcessor extends WireData implements Module {
             $pageSelector = $this->modules->DataSet->getPageSelector($fconfig, $field_data[$field]);
             $svalue = $this->pages->get($pageSelector); // do not check for access and published status
             if ($svalue === NULL || $svalue instanceof NullPage) {
-              $this->warning("WARNING: Could not find referenced page {$value} for field {$field}.");
-              continue;
+              if (in_array($field, $req_fields)) {
+                $this->error("ERROR: Could not find referenced page {$value} for field {$field}.");
+                continue 2; // go to the next record in the input
+              } else {
+                $this->warning("WARNING: Could not find referenced page {$value} for field {$field}.");
+                continue;
+              }
             }
           }
           $selector = str_replace('@'.$field, $svalue, $selector);
@@ -359,7 +365,7 @@ class DataSetCsvProcessor extends WireData implements Module {
         // continue; // go to the next record in the input
       }*/
 
-      $this->message("Data interpreted as ".str_replace("\n", " ", print_r($field_data, true)), Notice::debug);
+      $this->message($tasker->profilerGetTimestamp()."Data interpreted as ".str_replace("\n", " ", print_r($field_data, true)), Notice::debug);
       $this->message("Page selector is {$selector}.", Notice::debug);
 
       // create or update the page
@@ -380,6 +386,8 @@ class DataSetCsvProcessor extends WireData implements Module {
         // clear the new pages array (the have been already reported in the log)
         $newPages = array();
       }
+
+      $this->message($tasker->profilerGetTimestamp().'Done processing record #'.$taskData['records_processed'], Notice::debug);
 
     } while (true);
 //

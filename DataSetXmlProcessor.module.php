@@ -118,7 +118,7 @@ class DataSetXmlProcessor extends WireData implements Module {
 */
 
     // get a reference to Tasker and the task
-    $tasker = wire('modules')->get('Tasker');
+    $tasker = $this->modules->Tasker;
     $task = $params['task'];
 
     // count and store a few processed records
