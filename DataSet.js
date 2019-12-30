@@ -47,9 +47,11 @@ function DataSet(command, pageid, title, pathname, fileid) {
   // callback for task creation
   function createCallback(data) {
     if (data['status']) { // return status is OK
-      progressLabel.text('Task "' + title + '" has been created.');
+      // replace the task div with the new html code
+      progressLabel.replaceWith(data['status_html']);
+//      progressLabel.text('Task "' + title + '" has been created.');
       // start the task now
-      performApiCall(taskerAdminApiUrl + '/?cmd=start&id=' + data['taskid'], startCallback);
+//      performApiCall(taskerAdminApiUrl + '/?cmd=start&id=' + data['taskid'], startCallback);
     } else { // return status is not OK
       progressLabel.text('Error: ' + data['result']);
     }

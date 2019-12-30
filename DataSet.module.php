@@ -203,9 +203,9 @@ class DataSet extends WireData implements Module {
     $taskTitle = 'Import '.$fileConfig['name']." from {$pagefile->name} on page {$pagefile->page->title}";
     $tasks = $tasker->getTasks('title='.$taskTitle);
     if (!count($tasks)) $event->return .= '
-    <ul class="actions DataSetActions" id="dataset_file_'.$id.'" style="display: inline !important;">DataSet
+    <ul class="actions DataSetActions" id="dataset_file_'.$id.'" style="display: inline !important;">
       <li style="display: inline !important;">
-        <span><a onclick="DataSet(\'import\', \''.$pagefile->page->id.'\', \''.htmlentities($taskTitle).'\', \''.$pagefile->filename.'\', \''.$id.'\')">Import</a>
+        <span>DataSet: <a onclick="DataSet(\'import\', \''.$pagefile->page->id.'\', \''.htmlentities($taskTitle).'\', \''.$pagefile->filename.'\', \''.$id.'\')">Import</a>
          this file</span>
       </li>
       <div></div>
