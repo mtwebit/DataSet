@@ -39,6 +39,8 @@ class DataSet extends WireData implements Module {
     'dataset_config' => array('type' => 'FieldtypeTextarea', 'Label' => 'DataSet global config'),
     'dataset_source_files' => array('type' => 'FieldtypeFile', 'Label' => 'DataSet source files')
   );
+  public $tasker = NULL;
+  public $taskerAdmin = NULL;
 
 
 /***********************************************************************
@@ -145,10 +147,13 @@ class DataSet extends WireData implements Module {
       $this->message('Tasker module is missing.  Install it before using Dataset module.');
       return;
     }
+    $this->tasker = $this->modules->get('Tasker');
+
     if (!$this->modules->isInstalled('TaskerAdmin')) {
       $this->message('TaskerAdmin module is missing.  Install it before using Dataset module.');
       return;
     }
+    $this->taskerAdmin = $this->modules->get('TaskerAdmin');
 
     // Installing conditional hooks
     // Note: PW < 3.0.62 has a bug and needs manual fix for conditional hooks:
@@ -161,11 +166,10 @@ class DataSet extends WireData implements Module {
       // append Javascript functions
       $this->config->scripts->add($this->config->urls->siteModules . 'DataSet/DataSet.js');
       $this->config->styles->add($this->config->urls->siteModules . 'DataSet/DataSet.css');
-      $taskerAdmin = $this->modules->get('TaskerAdmin');
       // make settings available for Javascript functions
       $this->config->js('tasker', [
-        'adminUrl' => $taskerAdmin->adminUrl,
-        'apiUrl' => $taskerAdmin->adminUrl . 'api/',
+        'adminUrl' => $this->taskerAdmin->adminUrl,
+        'apiUrl' => $this->taskerAdmin->adminUrl . 'api/',
         'timeout' => 1000 * intval(ini_get('max_execution_time'))
       ]);
     }
@@ -199,10 +203,9 @@ class DataSet extends WireData implements Module {
       return;
     }
 
-    $tasker = wire('modules')->get('Tasker');
     // Query by name isn't the best idea
     $taskTitle = 'Import '.$fileConfig['name']." from {$pagefile->name} on page {$pagefile->page->title}";
-    $tasks = $tasker->getTasks('title='.$taskTitle);
+    $tasks = $this->tasker->getTasks('title='.$taskTitle);
     if (!count($tasks)) $event->return .= '
     <div class="actions DataSetActions" id="dataset_file_'.$id.'" style="display: inline !important;">
       DataSet <i class="fa fa-angle-right"></i>
@@ -235,9 +238,8 @@ class DataSet extends WireData implements Module {
       return;
     }
 
-    $tasker = wire('modules')->get('Tasker');
     $taskTitle = "Purge dataset on page {$field->hasPage->title}";
-    $tasks = $tasker->getTasks('title='.$taskTitle);
+    $tasks = $this->tasker->getTasks('title='.$taskTitle);
     if (!count($tasks)) $event->return .= '
     <div class="actions DataSetActions" id="dataset_file_all" style="display: inline !important;">
       DataSet <i class="fa fa-angle-right"></i>
@@ -263,8 +265,7 @@ class DataSet extends WireData implements Module {
    * The method also alters elements of the $taskData array.
    */
   public function import($dataSetPage, &$taskData, $params) {
-    // get a reference to Tasker and the task
-    $tasker = wire('modules')->get('Tasker');
+    // get a reference to the task
     $task = $params['task'];
 
     // check if we still have the file
@@ -336,7 +337,7 @@ class DataSet extends WireData implements Module {
     $ret = $proc->process($dataSetPage, $file, $taskData, $params);
 
     // save the progress before returning (for this time)
-    $tasker->saveProgress($task, $taskData, false, false);
+    $this->tasker->saveProgress($task, $taskData, false, false);
 
     if ($ret === false) return false;
 
@@ -392,8 +393,7 @@ class DataSet extends WireData implements Module {
       return true;
     }
 
-    // get a reference to Tasker and the task
-    $tasker = wire('modules')->get('Tasker');
+    // get a reference to the task
     $task = $params['task'];
 
     // store a few page names to print out
@@ -413,7 +413,7 @@ class DataSet extends WireData implements Module {
       $child->delete(true); // delete children as well
 
       // Report progress and check for events if a milestone is reached
-      if ($tasker->saveProgressAtMilestone($task, $taskData) && count($deleted)) {
+      if ($this->tasker->saveProgressAtMilestone($task, $taskData) && count($deleted)) {
         $this->message('Deleted pages: '.implode(', ', $deleted));
         // set a new milestone
         $taskData['milestone'] = $taskData['records_processed'] + 50;
@@ -425,7 +425,7 @@ class DataSet extends WireData implements Module {
       if (--$lazy) continue;
       $lazy = 10;
 
-      if (!$tasker->allowedToExecute($task, $params)) { // reached execution limits
+      if (!$this->tasker->allowedToExecute($task, $params)) { // reached execution limits
         $taskData['task_done'] = 0;
         break;  // the while loop
       }
@@ -553,6 +553,9 @@ class DataSet extends WireData implements Module {
       return false;
     }
 
+    // get a reference to the task
+    $task = $params['task'];
+
     // array of required field names
     $required_fields = (isset($params['pages']['required_fields']) ? $params['pages']['required_fields'] : array());
 
@@ -565,7 +568,7 @@ class DataSet extends WireData implements Module {
         return false;
       }
 
-      $this->message("Processing data for field '{$field}'.", Notice::debug);
+      $this->message($this->tasker->profilerGetTimestamp()."Processing data for field '{$field}'.", Notice::debug);
 
       // get the field config
       $fconfig = $pt->fields->get($field);
@@ -613,6 +616,10 @@ class DataSet extends WireData implements Module {
       $this->error("ERROR: error updating page because its template does not match.");
       return false;
     }
+
+    // get a reference to the task
+    $task = $params['task'];
+
     $pt = wire('templates')->get($template);
 
     $this->message("Updating page '{$page->title}'[{$page->id}]", Notice::debug);
@@ -630,7 +637,7 @@ class DataSet extends WireData implements Module {
         return false;
       }
 
-      $this->message("Processing data for field '{$field}'.", Notice::debug);
+      $this->message($this->tasker->profilerGetTimestamp()."Processing data for field '{$field}'.", Notice::debug);
 
       // get the field config
       $fconfig = $pt->fields->get($field);
@@ -799,10 +806,10 @@ class DataSet extends WireData implements Module {
 
     if ($fconfig->type instanceof FieldtypePage) {    // Page reference
       $selector = $this->getPageSelector($fconfig, $value);
-      $this->message("Page selector @ field {$field}: {$selector}.", Notice::debug);
+      $this->message($this->tasker->profilerGetTimestamp()."Page selector @ field {$field}: {$selector}.", Notice::debug);
       $refpage = $this->pages->get($selector);  // do not check for access and published status
       if ($refpage->id) {
-        $this->message("Found referenced page '{$refpage->title}' for field '{$field}' using the selector '{$selector}'.", Notice::debug);
+        $this->message($this->tasker->profilerGetTimestamp()."Found referenced page '{$refpage->title}' for field '{$field}' using the selector '{$selector}'.", Notice::debug);
         $value = $refpage->id;
         $hasValue = ($page->$field ? $page->$field->has($selector) : false);
         if ($hasValue) $this->message("Field '{$field}' already has a reference to '{$refpage->title}' [{$refpage->id}].", Notice::debug);
