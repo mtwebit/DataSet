@@ -7,7 +7,7 @@
  * 
  * Provides CSV import functions for the DataSet module.
  * 
- * Copyright 2018 Tamas Meszaros <mt+git@webit.hu>
+ * Copyright 2018-2020 Tamas Meszaros <mt+git@webit.hu>
  * This file licensed under Mozilla Public License v2.0 http://mozilla.org/MPL/2.0/
  */
  
@@ -169,7 +169,7 @@ class DataSetCsvProcessor extends WireData implements Module {
     }
 
     // set an initial milestone
-    $taskData['milestone'] = $taskData['records_processed'] + 20;
+    $taskData['milestone'] = $taskData['records_processed'] + 30;
 
 // TODO rethink return status
 
@@ -177,7 +177,7 @@ class DataSetCsvProcessor extends WireData implements Module {
 // The MAIN data import loop (if we still have data)
 //
     if ($notEOF) do {
-      if (!$tasker->allowedToExecute($task, $params)) {
+      if (!$tasker->allowedToExecute($task, $params)) {   // if we don't have time to import the data or the task has been suspended
         $taskData['task_done'] = 0;
         break; // ... the loop
       }
@@ -259,19 +259,23 @@ class DataSetCsvProcessor extends WireData implements Module {
 
         } elseif (is_array($column)) {
           // if the column is an array then
-          // 1. It could be a request to merge multiple columns together
+          // 1. Glue array
+          //    It could be a request to merge multiple columns together
           //    In this case $column is a simple (indexed) array
           //    where elements can be column IDs and strings glued to them
           //    the final value will be composed from several columns and glue strings
           //    Examle: [ 'The page title is ', 4, '.' ]  (4 is a numeric column ID)
-          // 2. It can specify column types that require special import methods
+          // 2. Explode array
+          //    It can specify column types that require special import methods
           //    In this case $column is an associative array
           //    where the 1st element is the data type and the rest are the arguments to the import
           //    valid scenarios are
           //    An array: import several values into the field
           //      { "type": "array", "separator": "|", "column": <column ID> }
 
-          if (isset($column['type'])) {
+// TODO is it possible to prepare these as sprintf statements once and just evaluate here?
+
+          if (isset($column['type'])) {   // a string to explode into array elements
             switch($column['type']) {
               case 'array':
                 if (isset($column['separator'])) $asep = $column['separator']; else $asep='|';
@@ -286,22 +290,24 @@ class DataSetCsvProcessor extends WireData implements Module {
                 break 3; // stop processing records, the error needs to be fixed
             }
             $this->message("Column {$column['column']} is interpreted as '{$column['type']}'.", Notice::debug);
-          } else {
+          } else {    // a string to glue array elements together
             $value = '';
             foreach ($column as $col) {
               if (is_string($col)) $value .= $col; // a glue string between column values
               else if (is_numeric($col)) {  // a column ID, get its data
-                if (!isset($csv_data[$col])) {  // empty input data and no defaults
+                if (!isset($csv_data[$col])) {  // invalid column specified
                   $this->error("ERROR: column '{$col}' for field '{$field}' not found in the input and no default value has been set for that CSV column.");
                   continue 3; // go to the next record in the input
                 }
                 // append the column's value
-                $value .= trim($csv_data[$col], "\"'\t\n\r\0\x0B");
+                $value .= trim($csv_data[$col], " \"'\t\n\r\0\x0B");    // TODO make this configurable?  Trim the space as well?
+
               } else {
                 $this->error("ERROR: invalid column specifier '{$col}' used in composing a value for field '{$field}'");
                 break 3; // stop processing records, the error needs to be fixed
               }
             }
+            $value = trim($value);  // TODO make this configurable?
           }
         } else { // the column is not an integer and not an array
           $this->error("ERROR: invalid column specifier '{$column}' given for field '{$field}'.");
@@ -339,12 +345,12 @@ class DataSetCsvProcessor extends WireData implements Module {
             $pageSelector = $this->modules->DataSet->getPageSelector($fconfig, $field_data[$field]);
             $svalue = $this->pages->get($pageSelector); // do not check for access and published status
             if ($svalue === NULL || $svalue instanceof NullPage) {
+              $this->error("ERROR: Could not find referenced page {$value} for field {$field}.");
               if (in_array($field, $req_fields)) {
-                $this->error("ERROR: Could not find referenced page {$value} for field {$field}.");
+                $this->error("Will not import this record due to invalid required value.");
                 continue 2; // go to the next record in the input
               } else {
-                $this->warning("WARNING: Could not find referenced page {$value} for field {$field}.");
-                continue;
+                continue;   // process the next field
               }
             }
           }
@@ -366,12 +372,20 @@ class DataSetCsvProcessor extends WireData implements Module {
       }*/
 
       $this->message($tasker->profilerGetTimestamp()."Data interpreted as ".str_replace("\n", " ", print_r($field_data, true)), Notice::debug);
+
+      if (!count($field_data)) continue;    // nothing to import
+
       $this->message("Page selector is {$selector}.", Notice::debug);
+
+      if (stripos($selector, '@')) {
+        $this->error("ERROR: could not instantiate Page selector '{$selector}' from input data: ");
+        continue;
+      }
 
       // create or update the page
       // it will log error and warning messages
       $newPage = $this->modules->DataSet->importPage($dataSetPage, $selector, $field_data, $params);
-      
+
       if ($newPage instanceof Page) {
         $newPages[] = $newPage->title;
       } elseif ($newPage === false) {
@@ -382,7 +396,7 @@ class DataSetCsvProcessor extends WireData implements Module {
       if ($tasker->saveProgressAtMilestone($task, $taskData) && count($newPages)) {
         $this->message('Import successful for '.implode(', ', $newPages));
         // set the next milestone
-        $taskData['milestone'] = $taskData['records_processed'] + 20;
+        $taskData['milestone'] = $taskData['records_processed'] + 30;
         // clear the new pages array (the have been already reported in the log)
         $newPages = array();
       }
