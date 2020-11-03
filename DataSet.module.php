@@ -199,11 +199,15 @@ class DataSet extends WireData implements Module {
     // parse the config
     $fileConfig = $this->parseConfig($pagefile->description);
     if ($fileConfig === false) {
-      $event->return .= '<div>ERROR: DataSet configuration is invalid. Actions are disabled.</div>';
+      $event->return .= '<div>ERROR: Unable to parse the DataSet configuration. Actions are disabled.</div>';
       return;
     }
 
-    // Query by name isn't the best idea
+    if (!$this->checkConfig($fileConfig)) {
+      $event->return .= '<div>ERROR: DataSet configuration is invalid. Actions are disabled.</div>';
+      return;
+    }
+    // TODO Query by name isn't the best idea
     $taskTitle = 'Import '.$fileConfig['name']." from {$pagefile->name} on page {$pagefile->page->title}";
     $tasks = $this->tasker->getTasks('title='.$taskTitle);
     if (!count($tasks)) $event->return .= '
@@ -741,6 +745,62 @@ class DataSet extends WireData implements Module {
   }
 
   /**
+   * Check data set import rules.
+   * 
+   * @param $config configuration as an associative array
+   * @returns true if the config is OK or false on error
+   */
+  public function checkConfig($params) {
+    if (!isset($params['pages']['template'])) {
+      $this->error('ERROR: Page template is missing in the "pages" section.');
+      return false;
+    }
+    $ptemplate = wire('templates')->get($params['pages']['template']);
+    if (!$ptemplate instanceof Template) {
+      $this->error("ERROR: unknown template in the 'pages' section: {$params['pages']['template']}.");
+      return false;
+    }
+    if (!isset($params['fieldmappings'])) {
+      $this->error('ERROR: "fieldmappings" section is missing.');
+      return false;
+    }
+
+    $ret = true;
+    if (isset($params['fieldmappings']) && !$this->checkFieldsExists($ptemplate, $params['fieldmappings'])) {
+      $this->error('ERROR: field mappings are invalid.');
+      $ret = false;
+    }
+    if (isset($params['field_data_defaults']) && !$this->checkFieldsExists($ptemplate, $params['field_data_defaults'])) {
+      $this->error('ERROR: field_data_defaults are invalid.');
+      $ret = false;
+    }
+    // TODO more checks...
+    // TODO remove checks from the Processor modules to improve their performance
+    return $ret;
+  }
+
+  /**
+   * Check whether fields exists or not.
+   * 
+   * @param $ptemplate Page template
+   * @param $fields array of fields to check
+   * @returns true if the config is OK or false on error
+   */
+  public function checkFieldsExists(Template $ptemplate, $fields) {
+    if (!is_array($fields)) {
+      return false;
+    }
+    foreach ($fields as $field => $value) {
+      if (!$ptemplate->fields->has($field)) {
+        $this->error("ERROR: template {$ptemplate} has no field named {$field}.");
+        return false;
+      }
+      // TODO check field types
+    }
+    return true;
+  }
+
+  /**
    * Build a page reference selector based on field configuration data and a search value
    * 
    * @param $fconfig field configuration
@@ -814,7 +874,7 @@ class DataSet extends WireData implements Module {
         $hasValue = ($page->$field ? $page->$field->has($selector) : false);
         if ($hasValue) $this->message("Field '{$field}' already has a reference to '{$refpage->title}' [{$refpage->id}].", Notice::debug);
       } else {
-        $this->error("WARNING: referenced page with value '{$value}' not found for field '{$field}' using selector '{$selector}'.");
+        $this->error("ERROR: referenced page with value '{$value}' not found for field '{$field}' using selector '{$selector}'.");
         return false;
       }
     } elseif ($fconfig->type instanceof FieldtypeFile
@@ -834,7 +894,7 @@ class DataSet extends WireData implements Module {
       if ($fconfig->type instanceof FieldtypeDatetime && is_string($value)) {
         $this->message("Converting '{$value}' to timestamp.", Notice::debug);
         if (false === \DateTime::createFromFormat('Y-m-d', $value)) {
-          $this->error("WARNING: field '{$field}' contains invalid datatime value '{$value}'.");
+          $this->error("ERROR: field '{$field}' contains invalid datatime value '{$value}'.");
           return false;
         }
         // TODO acquire the proper format from the field config
