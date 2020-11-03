@@ -7,7 +7,7 @@
  * 
  * Provides XML import functions for the DataSet module.
  * 
- * Copyright 2018 Tamas Meszaros <mt+git@webit.hu>
+ * Copyright 2018-2020 Tamas Meszaros <mt+git@webit.hu>
  * This file licensed under Mozilla Public License v2.0 http://mozilla.org/MPL/2.0/
  */
  
@@ -173,6 +173,9 @@ class DataSetXmlProcessor extends WireData implements Module {
       // increase the actual offset counter
       $entrySerial++;
 
+      $tasker->profilerReset();
+      $this->message("\n".$tasker->profilerGetTimestamp().'Reading record #'.($taskData['records_processed'] + 1).' from the input...', Notice::debug);
+
       // skip the element if it is empty
       if ($xml->isEmptyElement) continue;
 
@@ -197,12 +200,13 @@ class DataSetXmlProcessor extends WireData implements Module {
       $xml_data->substituteEntities = false;
       $xml_data->resolveExternals = false;
 
-
       // PW selector to select matching child nodes
       $selector = $params['pages']['selector'];
 
       // transfer input data to a field array
       $field_data = $field_data_defaults;
+
+      $this->message($tasker->profilerGetTimestamp().'Processing input record: '.$xml_string, Notice::debug);
 
       foreach ($params['fieldmappings'] as $field => $xselect) {
         if ($xselect == '.') { // get the actual record
@@ -249,8 +253,17 @@ class DataSetXmlProcessor extends WireData implements Module {
         // continue; // go to the next record in the input
       }
 
-      $this->message("Data interpreted as ".str_replace("\n", " ", print_r($field_data, true)), Notice::debug);
+      $this->message($tasker->profilerGetTimestamp()."Data interpreted as ".str_replace("\n", " ", print_r($field_data, true)), Notice::debug);
+
+      if (!count($field_data)) continue;    // nothing to import
+
       $this->message("Page selector is {$selector}.", Notice::debug);
+
+      if (stripos($selector, '@')) {
+        $this->error("ERROR: could not instantiate Page selector '{$selector}' from input data: ");
+        continue;
+      }
+
 
       // create or update the page
       $newPage = $this->modules->DataSet->importPage($dataSetPage, $selector, $field_data, $params);
@@ -269,6 +282,8 @@ class DataSetXmlProcessor extends WireData implements Module {
         // clear the new pages array (the have been already reported in the log)
         $newPages = array();
       }
+
+      $this->message($tasker->profilerGetTimestamp().'Done processing record #'.$taskData['records_processed'], Notice::debug);
 
     } while ($xml->next($params['input']['delimiter']));
 //
