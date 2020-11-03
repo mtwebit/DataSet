@@ -135,13 +135,11 @@ class DataSetCsvProcessor extends WireData implements Module {
       while ($i-- > 0) fgets($fd);
     }
 
-    // determine what columns are required
-    // TODO this is not tested and may not work
-    if (isset($params['input']['required_fields']) && is_array($params['input']['required_fields'])) {
-      $req_fields = $params['input']['required_fields'];
-    } else {
-      $req_fields = array();
-    }
+    // array of required column IDs, TODO rename to required_columns
+    $required_columns = (isset($params['input']['required_fields']) ? $params['input']['required_fields'] : array());
+
+    // array of required field names
+    $required_fields = (isset($params['pages']['required_fields']) ? $params['pages']['required_fields'] : array());
 
     // set default values for field data
     if (isset($params['field_data_defaults']) && is_array($params['field_data_defaults'])) {
@@ -219,7 +217,7 @@ class DataSetCsvProcessor extends WireData implements Module {
       $csv_data = array_merge(array(0 => $taskData['records_processed']), $csv_data);
 
       // check for required fields
-      foreach ($req_fields as $column) {
+      foreach ($required_columns as $column) {
         if (!isset($csv_data[$column]) || empty($csv_data[$column])) {
           $this->error("ERROR: missing required column {$column} in the input: ".implode($params['input']['delimiter'], $csv_data));
           continue 2; // go to the next record in the input
@@ -240,6 +238,8 @@ class DataSetCsvProcessor extends WireData implements Module {
       $this->message('Input record after defaults merged: '.implode($params['input']['delimiter'], $csv_data), Notice::debug);
 
       $selector = $params['pages']['selector']; // will be altered later
+      // TODO rework how these selectors specified.
+      // Is it enough to specify field names and not field_name=@field_name
 
       // stores field data read from the input
       $field_data = $field_data_defaults;
@@ -346,8 +346,8 @@ class DataSetCsvProcessor extends WireData implements Module {
             $svalue = $this->pages->get($pageSelector); // do not check for access and published status
             if ($svalue === NULL || $svalue instanceof NullPage) {
               $this->error("ERROR: Could not find referenced page {$value} for field {$field}.");
-              if (in_array($field, $req_fields)) {
-                $this->error("Will not import this record due to invalid required value.");
+              if (in_array($field, $required_fields)) {
+                $this->error("Will not import this record due to invalid required field value.");
                 continue 2; // go to the next record in the input
               } else {
                 continue;   // process the next field
@@ -357,19 +357,6 @@ class DataSetCsvProcessor extends WireData implements Module {
           $selector = str_replace('@'.$field, $svalue, $selector);
         }
       }
-
-      // check for required fields
-      /* TODO not supported ATM
-      $not_present=array_diff($req_fields, $field_data);
-      if (count($not_present)) {
-        foreach ($not_present as $field) {
-          $this->error("ERROR: missing value for required field '{$field}' in the input.");
-        }
-        $this->message(var_export($req_fields, true));
-        $this->message(var_export($field_data, true));
-        break;
-        // continue; // go to the next record in the input
-      }*/
 
       $this->message($tasker->profilerGetTimestamp()."Data interpreted as ".str_replace("\n", " ", print_r($field_data, true)), Notice::debug);
 
