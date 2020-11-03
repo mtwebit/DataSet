@@ -141,6 +141,11 @@ class DataSetCsvProcessor extends WireData implements Module {
     // array of required field names
     $required_fields = (isset($params['pages']['required_fields']) ? $params['pages']['required_fields'] : array());
 
+    // filter out columns
+    $exclude_expr = (isset($params['input']['exclude_filter']) ? 'return '.preg_replace_callback('|@(\d{1,3})|', function($matches) {
+          return '$csv_data['.$matches[1].']';
+        }, $params['input']['exclude_filter']).';' : 0);
+
     // set default values for field data
     if (isset($params['field_data_defaults']) && is_array($params['field_data_defaults'])) {
       $field_data_defaults = $params['field_data_defaults'];
@@ -215,6 +220,12 @@ class DataSetCsvProcessor extends WireData implements Module {
       // it will get index 0 in the $csv_data array
       // this also ensures that CSV files with only one column (and no delimiter) can be processed this way
       $csv_data = array_merge(array(0 => $taskData['records_processed']), $csv_data);
+
+      // check exclude filter
+      if ($exclude_expr && eval($exclude_expr) ) {
+        $this->message('Skipping #'.$taskData['records_processed'].' due to exclude filter match: '.$exclude_expr, Notice::debug);
+        continue;  // go to the next record in the input
+      }
 
       // check for required fields
       foreach ($required_columns as $column) {

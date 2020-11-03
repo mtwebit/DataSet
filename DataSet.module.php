@@ -775,6 +775,7 @@ class DataSet extends WireData implements Module {
       $ret = false;
     }
     // TODO more checks...
+    // TODO check input/exclude_filter for nasty PHP eval stuff
     // TODO remove checks from the Processor modules to improve their performance
     return $ret;
   }
