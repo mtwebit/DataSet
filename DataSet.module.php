@@ -35,9 +35,9 @@ class DataSet extends WireData implements Module {
   }
 }';
   private $myFields = array(
-    'title' => array('type' => 'FieldtypePageTitle', 'Label' => 'Title'),
-    'dataset_config' => array('type' => 'FieldtypeTextarea', 'Label' => 'DataSet global config'),
-    'dataset_source_files' => array('type' => 'FieldtypeFile', 'Label' => 'DataSet source files')
+    'title' => array('type' => 'FieldtypePageTitle', 'label' => 'Title'),
+    'dataset_config' => array('type' => 'FieldtypeTextarea', 'label' => 'DataSet global config'),
+    'dataset_source_files' => array('type' => 'FieldtypeFile', 'label' => 'DataSet source files')
   );
   public $tasker = NULL;
   public $taskerAdmin = NULL;
