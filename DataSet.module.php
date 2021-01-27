@@ -494,7 +494,7 @@ class DataSet extends WireData implements Module {
       if (isset($params['pages']['merge']) || isset($params['pages']['overwrite'])) {
         return $this->updatePage($dataPage, $params['pages']['template'], $field_data, $params);
       } else {
-        if (!isset($params['input']['silent_duplum']))
+        if (!isset($params['pages']['silent_duplum']))
           $this->message("WARNING: merge or overwrite not specified so not updating already existing data in '{$dataPage->title}'.");
         return NULL;
       }
