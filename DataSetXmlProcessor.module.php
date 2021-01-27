@@ -244,8 +244,10 @@ class DataSetXmlProcessor extends WireData implements Module {
       // check for required fields
       $not_present=array_diff($req_fields, $field_data);
       if (count($not_present)) {
-        foreach ($not_present as $field) {
-          $this->error("ERROR: missing value for required field '{$field}' in the input.");
+        if (!isset($params['input']['silent_missing'])) {
+          foreach ($not_present as $field) {
+            $this->error("ERROR: missing value for required field '{$field}' in the input.");
+          }
         }
         $this->message(var_export($req_fields, true));
         $this->message(var_export($not_present, true));

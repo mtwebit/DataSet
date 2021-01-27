@@ -230,7 +230,8 @@ class DataSetCsvProcessor extends WireData implements Module {
       // check for required fields
       foreach ($required_columns as $column) {
         if (!isset($csv_data[$column]) || empty($csv_data[$column])) {
-          $this->error("ERROR: missing required column {$column} in the input: ".implode($params['input']['delimiter'], $csv_data));
+          if (!isset($params['input']['silent_missing']))
+            $this->error("ERROR: missing required column {$column} in the input: ".implode($params['input']['delimiter'], $csv_data));
           continue 2; // go to the next record in the input
         }
       }
