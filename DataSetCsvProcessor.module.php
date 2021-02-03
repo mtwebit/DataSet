@@ -302,22 +302,31 @@ class DataSetCsvProcessor extends WireData implements Module {
                 break 3; // stop processing records, the error needs to be fixed
             }
             $this->message("Column {$column['column']} is interpreted as '{$column['type']}'.", Notice::debug);
-          } else {    // a string to glue array elements together
+          } else {    // glue array elements together
             $value = '';
+            $need_value = false;    // check if the field uses column values
+            $has_value = false;     // and at least one of them has a value
             foreach ($column as $col) {
               if (is_string($col)) $value .= $col; // a glue string between column values
               else if (is_numeric($col)) {  // a column ID, get its data
+                $need_value = true;
                 if (!isset($csv_data[$col])) {  // invalid column specified
                   $this->error("ERROR: column '{$col}' for field '{$field}' not found in the input and no default value has been set for that CSV column.");
                   continue 3; // go to the next record in the input
+                } elseif (strlen($csv_data[$col])) {
+                  // append the column's value
+                  $value .= trim($csv_data[$col], " \"'\t\n\r\0\x0B");    // TODO make this configurable?  Trim the space as well?
+                  $has_value = true;
                 }
-                // append the column's value
-                $value .= trim($csv_data[$col], " \"'\t\n\r\0\x0B");    // TODO make this configurable?  Trim the space as well?
-
               } else {
                 $this->error("ERROR: invalid column specifier '{$col}' used in composing a value for field '{$field}'");
                 break 3; // stop processing records, the error needs to be fixed
               }
+            }
+            if ($need_value && !$has_value) {  // none of the columns used in the glue string has a value
+              if (!isset($params['input']['silent_missing']))
+                $this->warning("WARNING: all columns for constructing field '{$field}' are empty. Ignoring the field.");
+              continue; // go to the next field in the input
             }
             $value = trim($value);  // TODO make this configurable?
           }
