@@ -264,7 +264,7 @@ class DataSetCsvProcessor extends WireData implements Module {
           // if the column is an integer then use a single column from the input
           if (!isset($csv_data[$column]) && !isset($field_data_defaults[$column])) {
             // if the column does not present and there is no default field value then dump an error a skip the record
-            $this->error("ERROR: column '{$column}' for field '{$field}' is not found in the input and no default value is set.");
+            $this->error("ERROR: column '{$column}' for field '{$field}' is missing (and no default value is set) in ".implode($params['input']['delimiter'], $csv_data));
             continue 2; // go to the next record in the input
           }
           $value = trim($csv_data[$column], "\"'\t\n\r\0\x0B");
@@ -311,7 +311,7 @@ class DataSetCsvProcessor extends WireData implements Module {
               else if (is_numeric($col)) {  // a column ID, get its data
                 $need_value = true;
                 if (!isset($csv_data[$col])) {  // invalid column specified
-                  $this->error("ERROR: column '{$col}' for field '{$field}' not found in the input and no default value has been set for that CSV column.");
+                  $this->error("ERROR: column '{$col}' for field '{$field}' not found (and no default value has been set for that CSV column) in ".implode($params['input']['delimiter'], $csv_data));
                   continue 3; // go to the next record in the input
                 } elseif (strlen($csv_data[$col])) {
                   // append the column's value
@@ -325,7 +325,7 @@ class DataSetCsvProcessor extends WireData implements Module {
             }
             if ($need_value && !$has_value) {  // none of the columns used in the glue string has a value
               if (!isset($params['input']['silent_missing']))
-                $this->warning("WARNING: all columns for constructing field '{$field}' are empty. Ignoring the field.");
+                $this->warning("WARNING: all columns values for constructing field '{$field}' are empty in ".implode($params['input']['delimiter'], $csv_data));
               continue; // go to the next field in the input
             }
             $value = trim($value);  // TODO make this configurable?
@@ -344,7 +344,7 @@ class DataSetCsvProcessor extends WireData implements Module {
         // if this field is used in the page selector then replace it with its value
         if (strpos($selector, '@'.$field)) {
           if (mb_strlen($field_data[$field])>100) {  // a ProcessWire constrain
-            $this->warning("WARNING: the value of selector '{$field}' is too long. Truncating to 100 characters.");
+            $this->warning("WARNING: the value of selector '{$field}' is too long. Truncating to 100 characters. The input was ".implode($params['input']['delimiter'], $csv_data));
           }
           // TODO This removes [ ] and other chars, see https://github.com/processwire/processwire/blob/master/wire/core/Sanitizer.php#L1506
           // HOWTO fix this?
@@ -366,11 +366,11 @@ class DataSetCsvProcessor extends WireData implements Module {
             $pageSelector = $this->modules->DataSet->getPageSelector($fconfig, $field_data[$field]);
             $svalue = $this->pages->get($pageSelector); // do not check for access and published status
             if ($svalue === NULL || $svalue instanceof NullPage) {
-              $this->error("ERROR: Could not find referenced page {$value} for field {$field}.");
               if (in_array($field, $required_fields)) {
-                $this->error("Will not import this record due to invalid required field value.");
+                $this->error("ERROR: skipping the record due to missing referenced page {$value} for field {$field} in the input ".implode($params['input']['delimiter'], $csv_data));
                 continue 2; // go to the next record in the input
               } else {
+                $this->warning("WARNING: ignoring the field due to missing referenced page {$value} for field {$field} in the input ".implode($params['input']['delimiter'], $csv_data));
                 continue;   // process the next field
               }
             }
@@ -386,7 +386,7 @@ class DataSetCsvProcessor extends WireData implements Module {
       $this->message("Page selector is {$selector}.", Notice::debug);
 
       if (stripos($selector, '@')) {
-        $this->error("ERROR: could not instantiate Page selector '{$selector}' from input data: ");
+        $this->error("ERROR: could not instantiate Page selector '{$selector}' from input data ".implode($params['input']['delimiter'], $csv_data));
         continue;
       }
 
