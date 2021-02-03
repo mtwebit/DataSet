@@ -113,6 +113,7 @@ class DataSetXmlProcessor extends WireData implements Module {
     $xml->setParserProperty(\XMLReader::VALIDATE, false);
     if (!$xml->isValid()) {
       $this->module->error("Invalid XML file {$file->name}.");
+      $xml->close();
       return false;
     }
 */

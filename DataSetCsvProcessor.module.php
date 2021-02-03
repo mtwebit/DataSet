@@ -105,6 +105,7 @@ class DataSetCsvProcessor extends WireData implements Module {
     $ptemplate = wire('templates')->get($params['pages']['template']);
     if (!$ptemplate instanceof Template) {
       $this->error("ERROR: unknown template: {$params['pages']['template']}.");
+      fclose($fd);
       return false;
     }
 
@@ -122,6 +123,7 @@ class DataSetCsvProcessor extends WireData implements Module {
     if (isset($params['input']['encoding'])) {
       if (!setlocale(LC_CTYPE, $params['input']['encoding'])) {
         $this->error("ERROR: locale {$params['input']['encoding']} is not supported by your system.");
+        fclose($fd);
         return false;
       }
       $encoding = $params['input']['encoding'];
@@ -293,13 +295,15 @@ class DataSetCsvProcessor extends WireData implements Module {
                 if (isset($column['separator'])) $asep = $column['separator']; else $asep='|';
                 if (!isset($column['column'])) {
                   $this->error("ERROR: '{$colum}' for field '{$field}' contains no column ID.");
-                  break 3; // stop processing records, the error needs to be fixed
+                  fclose($fd);
+                  return false; // stop processing records, the error needs to be fixed
                 }  
                 $value = explode($asep, $csv_data[$column['column']]);
                 break;
               default:
                 $this->error("ERROR: column type '{$column['type']}' for field '{$field}' is invalid.");
-                break 3; // stop processing records, the error needs to be fixed
+                fclose($fd);
+                return false; // stop processing records, the error needs to be fixed
             }
             $this->message("Column {$column['column']} is interpreted as '{$column['type']}'.", Notice::debug);
           } else {    // glue array elements together
@@ -320,7 +324,8 @@ class DataSetCsvProcessor extends WireData implements Module {
                 }
               } else {
                 $this->error("ERROR: invalid column specifier '{$col}' used in composing a value for field '{$field}'");
-                break 3; // stop processing records, the error needs to be fixed
+                fclose($fd);
+                return false; // stop processing records, the error needs to be fixed
               }
             }
             if ($need_value && !$has_value) {  // none of the columns used in the glue string has a value
@@ -332,7 +337,8 @@ class DataSetCsvProcessor extends WireData implements Module {
           }
         } else { // the column is not an integer and not an array
           $this->error("ERROR: invalid column specifier '{$column}' given for field '{$field}'.");
-          break 2; // stop processing records, the error needs to be fixed
+          fclose($fd);
+          return false; // stop processing records, the error needs to be fixed
         }
 
         // skip the field if it is empty
@@ -360,6 +366,7 @@ class DataSetCsvProcessor extends WireData implements Module {
           $fconfig = $ptemplate->fields->get($field);
           if ($fconfig == NULL) {
             $this->error("ERROR: unable to retrieve configuration for field {$field} on template {$params['pages']['template']}.");
+            fclose($fd);
             return false; // stop processing records, the error needs to be fixed
           }
           if ($fconfig->type instanceof FieldtypePage) {
