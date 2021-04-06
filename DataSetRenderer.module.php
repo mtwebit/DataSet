@@ -120,7 +120,7 @@ class DataSetRenderer extends WireData implements Module {
 
     // always use the default language for listing headwords
     // TODO multilanguage data sets are not supported atm
-    $lang = $this->languages->get('default');
+    // $lang = $this->languages->get('default');
 
     if (is_array($pattern)) {
       // print out these letters
@@ -186,8 +186,8 @@ class DataSetRenderer extends WireData implements Module {
     $out = '';
     // always use the default language for listing headwords
     // TODO multilanguage dictionaries are not supported atm
-    $lang = $this->user->language;
-    $this->user->language = $this->languages->get('default');
+    // $lang = $this->user->language;
+    // $this->user->language = $this->languages->get('default');
 
     $headwords = $dataSetPage->children($selector);
     foreach ($headwords as $headword) {
@@ -202,7 +202,8 @@ class DataSetRenderer extends WireData implements Module {
     }
 
     // restore the original language
-    $this->user->language = $lang;
+    // TODO enable this if multi-language support is implemented
+    // $this->user->language = $lang;
 
     return $out;
   }
