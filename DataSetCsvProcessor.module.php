@@ -210,12 +210,13 @@ class DataSetCsvProcessor extends WireData implements Module {
       // check encoding, TODO this is fairly slow, see https://stackoverflow.com/questions/1523460/ensuring-valid-utf-8-in-php
       if (!mb_check_encoding(implode(' ', $csv_data), $encoding)) {
         $this->error('ERROR: wrong character encoding in '.implode($params['input']['delimiter'], $csv_data));
-        break;
+        continue;
       }
 
       if (count($csv_data) < 2 && count($params['fieldmappings']) > 1) {
         $this->error('ERROR: too few columns found. Could be a wrong delimiter or malformed input: '.implode($params['input']['delimiter'], $csv_data));
-        break;
+        fclose($fd);
+        return false;
       }
 
       // add a serial number to the beginning of the record
