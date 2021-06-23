@@ -128,7 +128,7 @@ class DataSetCsvProcessor extends WireData implements Module {
       }
       $encoding = $params['input']['encoding'];
     } else {
-      $encoding = 'utf-8';
+      $encoding = 'UTF-8';
     }
 
     // skip header rows if needed
@@ -209,8 +209,13 @@ class DataSetCsvProcessor extends WireData implements Module {
 
       // check encoding, TODO this is fairly slow, see https://stackoverflow.com/questions/1523460/ensuring-valid-utf-8-in-php
       if (!mb_check_encoding(implode(' ', $csv_data), $encoding)) {
-        $this->error('ERROR: wrong character encoding in '.implode($params['input']['delimiter'], $csv_data));
-        continue;
+        $str = implode($params['input']['delimiter'], $csv_data);
+        if (!mb_check_encoding($str, 'UTF-8')) {
+          $str = utf8_encode($str);
+        }
+        $this->error('ERROR: wrong character encoding (not '.$encoding.') in '.$str);
+        fclose($fd);
+        return false;
       }
 
       if (count($csv_data) < 2 && count($params['fieldmappings']) > 1) {
