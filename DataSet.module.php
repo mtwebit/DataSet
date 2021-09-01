@@ -53,10 +53,10 @@ class DataSet extends WireData implements Module {
    */
   public function ___install() {
    // check / add fieldgroup
-    $fg = $this->fieldgroups->get('dataset-fieldgroup');
+    $fg = $this->fieldgroups->get('dataset');
     if (!@$fg->id) {
       $fg = new Fieldgroup();
-      $fg->name = 'dataset-fieldgroup';
+      $fg->name = 'dataset';
       $fg->add($this->fields->get('title'));
       $field->tags = 'DataSet';
       $fg->save();
@@ -121,7 +121,7 @@ class DataSet extends WireData implements Module {
         $this->templates->delete($t);
       }
       // TODO other templates may use the fg
-      $fg = $this->fieldgroups->get('dataset-fieldgroup');
+      $fg = $this->fieldgroups->get('dataset');
       if (@$fg->id) {
         $this->fieldgroups->delete($fg);
       }
