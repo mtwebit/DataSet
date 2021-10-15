@@ -207,19 +207,20 @@ class DataSetCsvProcessor extends WireData implements Module {
       // increase the number of processed records
       $taskData['records_processed']++;
 
+      $record = implode($params['input']['delimiter'], $csv_data);
+
       // check encoding, TODO this is fairly slow, see https://stackoverflow.com/questions/1523460/ensuring-valid-utf-8-in-php
-      if (!mb_check_encoding(implode(' ', $csv_data), $encoding)) {
-        $str = implode($params['input']['delimiter'], $csv_data);
-        if (!mb_check_encoding($str, 'UTF-8')) {
-          $str = utf8_encode($str);
+      if (!mb_check_encoding($record, $encoding)) {
+        if (!mb_check_encoding($record, 'UTF-8')) {
+          $record = utf8_encode($record);
         }
-        $this->error('ERROR: wrong character encoding (not '.$encoding.') in '.$str);
+        $this->error('ERROR: wrong character encoding (not '.$encoding.') in '.$record);
         fclose($fd);
         return false;
       }
 
       if (count($csv_data) < 2 && count($params['fieldmappings']) > 1) {
-        $this->error('ERROR: too few columns found. Could be a wrong delimiter or malformed input: '.implode($params['input']['delimiter'], $csv_data));
+        $this->error('ERROR: too few columns found. Could be a wrong delimiter or malformed input: '.$record);
         fclose($fd);
         return false;
       }
@@ -239,12 +240,12 @@ class DataSetCsvProcessor extends WireData implements Module {
       foreach ($required_columns as $column) {
         if (!isset($csv_data[$column]) || empty($csv_data[$column])) {
           if (!isset($params['input']['silent_missing']))
-            $this->error("ERROR: missing required column {$column} in the input: ".implode($params['input']['delimiter'], $csv_data));
+            $this->error("ERROR: missing required column {$column} in the input: ".$record);
           continue 2; // go to the next record in the input
         }
       }
 
-      $this->message($tasker->profilerGetTimestamp().'Processing input record: '.implode($params['input']['delimiter'], $csv_data), Notice::debug);
+      $this->message($tasker->profilerGetTimestamp().'Processing input record: '.$record, Notice::debug);
 
       // use default values
       if (count($csv_data_defaults)) {
@@ -255,7 +256,7 @@ class DataSetCsvProcessor extends WireData implements Module {
         }
       }
 
-      $this->message('Input record after defaults merged: '.implode($params['input']['delimiter'], $csv_data), Notice::debug);
+      $this->message('Input record after defaults merged: '.$record, Notice::debug);
 
       $selector = $params['pages']['selector']; // will be altered later
       // TODO rework how these selectors specified.
@@ -272,7 +273,7 @@ class DataSetCsvProcessor extends WireData implements Module {
           // if the column is an integer then use a single column from the input
           if (!isset($csv_data[$column]) && !isset($field_data_defaults[$column])) {
             // if the column does not present and there is no default field value then dump an error a skip the record
-            $this->error("ERROR: column '{$column}' for field '{$field}' is missing (and no default value is set) in ".implode($params['input']['delimiter'], $csv_data));
+            $this->error("ERROR: column '{$column}' for field '{$field}' is missing (and no default value is set) in ".$record);
             continue 2; // go to the next record in the input
           }
           $value = trim($csv_data[$column], "\"'\t\n\r\0\x0B");
@@ -317,11 +318,13 @@ class DataSetCsvProcessor extends WireData implements Module {
             $need_value = false;    // check if the field uses column values
             $has_value = false;     // and at least one of them has a value
             foreach ($column as $col) {
-              if (is_string($col)) $value .= $col; // a glue string between column values
-              else if (is_numeric($col)) {  // a column ID, get its data
+              if (is_string($col)) {
+                $value .= $col; // a glue string between column values
+                $has_value = true;
+              } else if (is_numeric($col)) {  // a column ID, get its data
                 $need_value = true;
                 if (!isset($csv_data[$col])) {  // invalid column specified
-                  $this->error("ERROR: column '{$col}' for field '{$field}' not found (and no default value has been set for that CSV column) in ".implode($params['input']['delimiter'], $csv_data));
+                  $this->error("ERROR: column '{$col}' for field '{$field}' not found (and no default value has been set for that CSV column) in ".$record);
                   continue 3; // go to the next record in the input
                 } elseif (strlen($csv_data[$col])) {
                   // append the column's value
@@ -336,7 +339,7 @@ class DataSetCsvProcessor extends WireData implements Module {
             }
             if ($need_value && !$has_value) {  // none of the columns used in the glue string has a value
               if (!isset($params['input']['silent_missing']))
-                $this->warning("WARNING: all columns values for constructing field '{$field}' are empty in ".implode($params['input']['delimiter'], $csv_data));
+                $this->warning("WARNING: all columns values for constructing field '{$field}' are empty in ".$record);
               continue; // go to the next field in the input
             }
             $value = trim($value);  // TODO make this configurable?
@@ -356,7 +359,7 @@ class DataSetCsvProcessor extends WireData implements Module {
         // if this field is used in the page selector then replace it with its value
         if (strpos($selector, '@'.$field)) {
           if (mb_strlen($field_data[$field])>100) {  // a ProcessWire constrain
-            $this->warning("WARNING: the value of selector '{$field}' is too long. Truncating to 100 characters. The input was ".implode($params['input']['delimiter'], $csv_data));
+            $this->warning("WARNING: the value of selector '{$field}' is too long. Truncating to 100 characters. The input was ".$record);
           }
           // TODO This removes [ ] and other chars, see https://github.com/processwire/processwire/blob/master/wire/core/Sanitizer.php#L1506
           // HOWTO fix this?
@@ -380,10 +383,10 @@ class DataSetCsvProcessor extends WireData implements Module {
             $svalue = $this->pages->get($pageSelector); // do not check for access and published status
             if ($svalue === NULL || $svalue instanceof NullPage) {
               if (in_array($field, $required_fields)) {
-                $this->error("ERROR: skipping the record due to missing referenced page {$value} for field {$field} in the input ".implode($params['input']['delimiter'], $csv_data));
+                $this->error("ERROR: skipping the record due to missing referenced page {$value} for field {$field} in the input ".$record);
                 continue 2; // go to the next record in the input
               } else {
-                $this->warning("WARNING: ignoring the field due to missing referenced page {$value} for field {$field} in the input ".implode($params['input']['delimiter'], $csv_data));
+                $this->warning("WARNING: ignoring the field due to missing referenced page {$value} for field {$field} in the input ".$record);
                 continue;   // process the next field
               }
             }
@@ -399,7 +402,7 @@ class DataSetCsvProcessor extends WireData implements Module {
       $this->message("Page selector is {$selector}.", Notice::debug);
 
       if (stripos($selector, '@')) {
-        $this->error("ERROR: could not instantiate Page selector '{$selector}' from input data ".implode($params['input']['delimiter'], $csv_data));
+        $this->error("ERROR: could not instantiate Page selector '{$selector}' from input data ".$record);
         continue;
       }
 
@@ -410,7 +413,7 @@ class DataSetCsvProcessor extends WireData implements Module {
       if ($newPage instanceof Page) {
         $newPages[] = $newPage->title;
       } elseif ($newPage === false) {
-        $this->error("ERROR: could not import the record '".implode($params['input']['delimiter'], $csv_data)."'");
+        $this->error("ERROR: could not import the record '".$record."'");
       }
 
       // Report progress and check for events if a milestone is reached
