@@ -470,7 +470,7 @@ class DataSet extends WireData implements Module {
 
     // check the page title
     if (!isset($field_data['title']) || strlen(trim($this->sanitizer->pageName($field_data['title'], true)))<2) {
-      $this->error("ERROR: invalid / empty title found in '{$selector}'.");
+      $this->error("ERROR: invalid / empty page title.");
       return false;
     }
 
@@ -578,11 +578,14 @@ class DataSet extends WireData implements Module {
       // get the field config
       $fconfig = $pt->fields->get($field);
 
+      // is the field required
+      $required = in_array($field, $required_fields);
+
       // set and store the field's value
-      if (!$this->setFieldValue($page, $fconfig, $field, $value)) {
+      if (!$this->setFieldValue($page, $fconfig, $field, $value, false, $required)) {
         // this is a fatal error if the field is required
-        if (in_array($field, $required_fields)) {
-          $this->error("ERROR: could not set the value of the required field '{$field}'.");
+        if ($required) {
+          $this->error("ERROR: could not set the value for required field '{$field}'.");
           $page->delete();  // delete the partially created page
           return false;
         } else {
@@ -647,11 +650,14 @@ class DataSet extends WireData implements Module {
       // get the field config
       $fconfig = $pt->fields->get($field);
 
+      // is the field required
+      $required = in_array($field, $required_fields);
+
       // set and save the field's value
-      if (!$this->setFieldValue($page, $fconfig, $field, $value, in_array($field, $overwrite_fields))) {
+      if (!$this->setFieldValue($page, $fconfig, $field, $value, in_array($field, $overwrite_fields), $required)) {
         // this is a fatal error if the field is required
-        if (in_array($field, $required_fields)) {
-          $this->error("ERROR: could not set the value of a required field '{$field}'.");
+        if ($required) {
+          $this->error("ERROR: could not set the value for required field '{$field}'.");
           // TODO rollback to the page's old state?
           return false;
         } else {
@@ -855,13 +861,14 @@ class DataSet extends WireData implements Module {
    * @param $field field name
    * @param $value field value to set
    * @param $overwrite overwrite already existing values?
+   * @param $required is the field required?
    * @returns an array of fields that need to be set after the page is saved (e.g. file and image fields)
    */
-  public function setFieldValue($page, $fconfig, $field, $value, $overwrite = false) {
+  public function setFieldValue($page, $fconfig, $field, $value, $overwrite = false, $required = false) {
     // the the value is an array, store each member value separately in the field
     if (is_array($value)) {
       foreach ($value as $v) {
-        if (!$this->setFieldValue($page, $fconfig, $field, $v, $overwrite)) return false;
+        if (!$this->setFieldValue($page, $fconfig, $field, $v, $overwrite, $required)) return false;
       }
       return true;
     }
@@ -876,7 +883,11 @@ class DataSet extends WireData implements Module {
         $hasValue = ($page->$field ? $page->$field->has($selector) : false);
         if ($hasValue) $this->message("Field '{$field}' already has a reference to '{$refpage->title}' [{$refpage->id}].", Notice::debug);
       } else {
-        $this->error("ERROR: referenced page with value '{$value}' not found for field '{$field}' using selector '{$selector}'.");
+        if ($required) {
+          $this->error("ERROR: referenced page with value '{$value}' not found for required field '{$field}' using selector '{$selector}'.");
+        } else {
+          $this->warning("WARNING: referenced page with value '{$value}' not found for optional field '{$field}' using selector '{$selector}'.");
+        }
         return false;
       }
     } elseif ($fconfig->type instanceof FieldtypeFile
