@@ -58,7 +58,6 @@ class DataSet extends WireData implements Module {
       $fg = new Fieldgroup();
       $fg->name = 'dataset-fieldgroup';
       $fg->add($this->fields->get('title'));
-      $field->tags = 'DataSet';
       $fg->save();
     }
 
