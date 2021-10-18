@@ -468,8 +468,8 @@ class DataSet extends WireData implements Module {
     }
 
     // check the page title
-    if (!isset($field_data['title']) || strlen(trim($this->sanitizer->pageName($field_data['title'], true)))<2) {
-      $this->error("ERROR: invalid / empty page title.");
+    if (!isset($field_data['title']) || strlen($this->sanitizer->pageNameUTF8($field_data['title'], true))<2) {
+      $this->error("ERROR: invalid / empty page title: " . $field_data['title']);
       return false;
     }
 
@@ -526,7 +526,7 @@ class DataSet extends WireData implements Module {
     }
 
     // check the page title    TODO: again?
-    if (!is_string($field_data['title']) || strlen(trim($this->sanitizer->pageName($field_data['title'], true)))<2) {
+    if (!is_string($field_data['title']) || strlen(trim($this->sanitizer->pageNameUTF8($field_data['title'], true)))<2) {
       $this->error("ERROR: error creating page because its title is invalid.");
       return false;
     }
