@@ -399,12 +399,15 @@ class DataSetCsvProcessor extends WireData implements Module {
 
       if (!count($field_data)) continue;    // nothing to import
 
-      $this->message("Page selector is {$selector}.", Notice::debug);
-
       if (stripos($selector, '@')) {
         $this->error("ERROR: could not instantiate Page selector '{$selector}' from input data ".$record);
         continue;
       }
+
+      // add the child page template to the selector
+      $selector .= ',template='.$ptemplate;
+
+      $this->message("Page selector is {$selector}.", Notice::debug);
 
       // create or update the page
       // it will log error and warning messages
