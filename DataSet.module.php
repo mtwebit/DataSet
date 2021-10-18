@@ -468,7 +468,7 @@ class DataSet extends WireData implements Module {
     }
 
     // check the page title
-    if (!isset($field_data['title']) || strlen($this->sanitizer->pageNameUTF8($field_data['title'], true))<1) {
+    if (!isset($field_data['title']) || strlen($this->wire('sanitizer')->pageNameUTF8($field_data['title'], true))<1) {
       $this->error("ERROR: invalid / empty page title: " . $field_data['title']);
       return false;
     }
@@ -479,7 +479,7 @@ class DataSet extends WireData implements Module {
                   isset(wire('config')->dbCharset) ? isset(wire('config')->dbCharset) : '');
     }
     // find pages already present in the data set
-    $selector = 'title='.$this->sanitizer->selectorValue($title)
+    $selector = 'title='.$this->wire('sanitizer')->selectorValue($title)
                .', template='.$dataSetConfig['pages']['template'].', include=all';
 */
 
@@ -526,7 +526,7 @@ class DataSet extends WireData implements Module {
     }
 
     // check the page title    TODO: again?
-    if (!is_string($field_data['title']) || strlen(trim($this->sanitizer->pageNameUTF8($field_data['title'], true)))<1) {
+    if (!is_string($field_data['title']) || strlen(trim($this->wire('sanitizer')->pageNameUTF8($field_data['title'], true)))<1) {
       $this->error("ERROR: error creating page because its title is invalid.");
       return false;
     }

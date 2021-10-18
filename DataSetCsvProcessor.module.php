@@ -363,7 +363,7 @@ class DataSetCsvProcessor extends WireData implements Module {
           }
           // TODO This removes [ ] and other chars, see https://github.com/processwire/processwire/blob/master/wire/core/Sanitizer.php#L1506
           // HOWTO fix this?
-          $svalue = wire('sanitizer')->selectorValue($field_data[$field]);
+          $svalue = $this->wire('sanitizer')->selectorValue($field_data[$field]);
 
           // TODO
           // if a field value used in the selector is missing then the selector will not work
