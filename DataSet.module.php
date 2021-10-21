@@ -12,8 +12,6 @@
  */
  
 class DataSet extends WireData implements Module {
-  // the base URL of the module's admin page
-  private $redirectUrl = '';
   const DEF_IMPORT_OPTIONS = '{
   "name": "Default import configuration",
   "comment": "any text",
