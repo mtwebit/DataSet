@@ -208,7 +208,7 @@ class DataSet extends WireData implements Module {
     }
     // TODO Query by name isn't the best idea
     $taskTitle = 'Import '.$fileConfig['name']." from {$pagefile->name} on page {$pagefile->page->title}";
-    $tasks = $this->tasker->getTasks('title='.$taskTitle);
+    $tasks = $this->tasker->getTasks('title=' . $this->sanitizer->selectorValue($taskTitle));
     if (!count($tasks)) $event->return .= '
     <div class="actions DataSetActions" id="dataset_file_'.$id.'" style="display: inline !important;">
       DataSet <i class="fa fa-angle-right"></i>
