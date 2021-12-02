@@ -83,16 +83,16 @@ class DataSet extends WireData implements Module {
         $field->name = $fname;
         $field->label = $fcdata['label'];
         $field->type = $this->modules->get($fcdata['type']);
-	if ($fcdata['type'] == 'FieldtypeFile') {
+      if ($fcdata['type'] == 'FieldtypeFile') {
           $field->description = 'The file\'s description field should contain import rules in YAML or JSON format.';
           // $field->required = 1;
           // $field->attr("name+id", 'myimages');
-	  // $field->destinationPath = $upload_path;
-	  $field->extensions = 'csv xml';
+          // $field->destinationPath = $upload_path;
+          $field->extensions = 'csv xml';
           $field->maxFiles = 0;
-	  // $field->maxFilesize = 20*1024*1024; // 20 MiB
+          // $field->maxFilesize = 20*1024*1024; // 20 MiB
           $field->setIcon('fa-archive');
-	  // TODO how to set these?
+          // TODO how to set these?
           // $field->overwrite = 1;
           // $field->file descriptions...rows = 15;
         }
