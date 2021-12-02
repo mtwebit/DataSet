@@ -484,11 +484,15 @@ class DataSet extends WireData implements Module {
                .', template='.$dataSetConfig['pages']['template'].', include=all';
 */
 
-    $this->message("Checking existing content with selector '{$selector}'.", Notice::debug);
-
     // TODO speed up selectors...
     $selectorOptions = array('getTotal' => false);
-    $dataPage = $dataSetPage->child($selector.',check_access=0', $selectorOptions);
+    if (!isset($params['pages']['search_global'])) {
+      $this->message("Checking existing child pages with selector '{$selector}'.", Notice::debug);
+      $dataPage = $dataSetPage->child($selector.',check_access=0', $selectorOptions);
+    } else {
+    $this->message("Checking existing pages with global selector '{$selector}'.", Notice::debug);
+      $dataPage = $this->pages->findOne($selector.',check_access=0', $selectorOptions);
+    }
 
     if ($dataPage->id) { // found a page using the selector
       if (isset($params['pages']['merge']) || isset($params['pages']['overwrite'])) {
