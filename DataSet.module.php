@@ -925,17 +925,17 @@ class DataSet extends WireData implements Module {
     if ($overwrite) {
       $this->message("Overwriting field '{$field}''s old value with '{$value}'.", Notice::debug);
       $page->$field = $value;
-      return $this->saveField($page, $field, $value);
+      return $this->saveField($page, $field, $fconfig, $value);
     }
     if (!$hasValue) {
       if ($page->$field && $page->$field instanceof WireArray && $page->$field->count()) {
         $this->message("Adding new value '{$value}' to field '{$field}'.", Notice::debug);
         $page->$field->add($value);
-        return $this->saveField($page, $field, $value);
+        return $this->saveField($page, $field, $fconfig, $value);
       }
       $this->message("Setting field '{$field}' = '{$value}'.", Notice::debug);
       $page->$field = $value;
-      return $this->saveField($page, $field, $value);
+      return $this->saveField($page, $field, $fconfig, $value);
     }
     $this->message("WARNING: not updating already populated field '{$field}'.", Notice::debug);
     return false;
@@ -947,10 +947,11 @@ class DataSet extends WireData implements Module {
    * 
    * @param $page PW Page that holds the field
    * @param $field field name
+   * @param $fconfig field config
    * @param $value field value to set
    * @returns true on success, false on failure
    */
-  public function saveField($page, $fieldname, $value) {
+  public function saveField($page, $fieldname, $fconfig, $value) {
     try {
       if (!$page->save($fieldname)) {
         $this->error("ERROR: could not set field '{$fieldname}' = '{$value}' on page '{$page->title}'.");
@@ -962,6 +963,13 @@ class DataSet extends WireData implements Module {
       // Tasker will enforce this setting but other callers may not.
     } catch (\Exception $e) {
       $this->error("ERROR: got an exception while setting field '{$fieldname}' = '{$value}' on page '{$page->title}': ".$e->getMessage().'.');
+      return false;
+    }
+    // check the actually stored value in the database
+    // this is needed because above error checking does not work in some cases (e.g. unique fields)
+    $storedValue = $fconfig->type->loadPageField($page, $fconfig);
+    if ($storedValue != $value) {
+      $this->error("ERROR: could not set field '{$fieldname}' of type '{$fconfig->type}' to value '{$value}' on page '{$page->title}'.");
       return false;
     }
     return true;
