@@ -969,8 +969,8 @@ class DataSet extends WireData implements Module {
     // check the actually stored value in the database
     // this is needed because above error checking does not work in some cases (e.g. unique fields)
     $storedValue = $fconfig->type->loadPageField($page, $fconfig);
-    if ($storedValue != $value) {
-      $this->error("ERROR: could not set field '{$fieldname}' of type '{$fconfig->type}' to value '{$value}' on page '{$page->title}'.");
+    if ((is_array($storedValue) && !in_array($value, $storedValue)) || (!is_array($storedValue) && ($storedValue != $value))) {
+      $this->error("ERROR: could not set field '{$fieldname}' of type '{$fconfig->type}' to value '{$value}' on page '{$page->title}'. The actually stored value is " . var_export($storedValue, true));
       return false;
     }
     return true;
