@@ -659,8 +659,8 @@ class DataSet extends WireData implements Module {
 
       // set and save the field's value
       if (!$this->setFieldValue($page, $fconfig, $field, $value, in_array($field, $overwrite_fields), $required)) {
-        // this is a fatal error if the field is required
-        if ($required) {
+        // this is a fatal error if the field is required and it has no value
+        if ($required && $page->getField($field) == NULL) {
           $this->error("ERROR: could not set the value for required field '{$field}'.");
           // TODO rollback to the page's old state?
           return false;
