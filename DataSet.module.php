@@ -243,6 +243,7 @@ class DataSet extends WireData implements Module {
     }
 
     $taskTitle = "Purge dataset on page {$field->hasPage->title}";
+    $taskTitle = $this->sanitizer->selectorValue($taskTitle);
     $tasks = $this->tasker->getTasks('title='.$taskTitle);
     if (!count($tasks)) $event->return .= '
     <div class="actions DataSetActions" id="dataset_file_all" style="display: inline !important;">
