@@ -208,8 +208,8 @@ class DataSet extends WireData implements Module {
     }
     // TODO Query by name isn't the best idea
     $taskTitle = 'Import '.$fileConfig['name']." from {$pagefile->name} on page {$pagefile->page->title}";
-    $taskTitle = $this->sanitizer->selectorValue($taskTitle);
-    $tasks = $this->tasker->getTasks('title=' . $taskTitle);
+    $taskTitle = $this->sanitizer->selectorValue($taskTitle, array('useQuotes' => false));
+    $tasks = $this->tasker->getTasks("title='$taskTitle'");
     if (!count($tasks)) $event->return .= '
     <div class="actions DataSetActions" id="dataset_file_'.$id.'" style="display: inline !important;">
       DataSet <i class="fa fa-angle-right"></i>
@@ -217,7 +217,7 @@ class DataSet extends WireData implements Module {
          this file</span>
     </div>';
     else $event->return .= '
-      '.wire('modules')->get('TaskerAdmin')->renderTaskList('title='.$taskTitle, '', ' target="_blank"');
+      '.wire('modules')->get('TaskerAdmin')->renderTaskList("title='$taskTitle'", '', ' target="_blank"');
   }
 
   /**
@@ -243,8 +243,8 @@ class DataSet extends WireData implements Module {
     }
 
     $taskTitle = "Purge dataset on page {$field->hasPage->title}";
-    $taskTitle = $this->sanitizer->selectorValue($taskTitle);
-    $tasks = $this->tasker->getTasks('title='.$taskTitle);
+    $taskTitle = $this->sanitizer->selectorValue($taskTitle, array('useQuotes' => false));
+    $tasks = $this->tasker->getTasks("title='$taskTitle'");
     if (!count($tasks)) $event->return .= '
     <div class="actions DataSetActions" id="dataset_file_all" style="display: inline !important;">
       DataSet <i class="fa fa-angle-right"></i>
@@ -252,7 +252,7 @@ class DataSet extends WireData implements Module {
         (DANGER: All child nodes with the above template will be removed!)</span>
     </div>';
     else $event->return .= '
-      '.wire('modules')->get('TaskerAdmin')->renderTaskList('title='.$taskTitle, '', ' target="_blank"');
+      '.wire('modules')->get('TaskerAdmin')->renderTaskList("title='$taskTitle'", '', ' target="_blank"');
   }
 
 
@@ -481,7 +481,7 @@ class DataSet extends WireData implements Module {
                   isset(wire('config')->dbCharset) ? isset(wire('config')->dbCharset) : '');
     }
     // find pages already present in the data set
-    $selector = 'title='.$this->sanitizer->selectorValue($title)
+    $selector = 'title='.$this->sanitizer->selectorValue($title, array('useQuotes' => false))
                .', template='.$dataSetConfig['pages']['template'].', include=all';
 */
 
@@ -882,6 +882,8 @@ class DataSet extends WireData implements Module {
       $selector = $this->getPageSelector($fconfig, $value);
       $this->message($this->tasker->profilerGetTimestamp()."Page selector @ field {$field}: {$selector}.", Notice::debug);
       $refpage = $this->pages->get($selector);  // do not check for access and published status
+      // TODO use findRaw() instead of find and get, see https://processwire.com/blog/posts/find-faster-and-more-efficiently/#finding-faster-with-raw-data
+      // $refpage = current($this->pages->findRaw($selector. ',limit=1,check_access=0', array('title', 'id'), array('objects' => true)));
       if ($refpage->id) {
         $this->message($this->tasker->profilerGetTimestamp()."Found referenced page '{$refpage->title}' for field '{$field}' using the selector '{$selector}'.", Notice::debug);
         $value = $refpage->id;
