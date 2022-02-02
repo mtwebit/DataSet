@@ -887,8 +887,10 @@ class DataSet extends WireData implements Module {
       if ($refpage->id) {
         $this->message($this->tasker->profilerGetTimestamp()."Found referenced page '{$refpage->title}' for field '{$field}' using the selector '{$selector}'.", Notice::debug);
         $value = $refpage->id;
-        $hasValue = ($page->getField($field) != NULL ? $page->$field->has($value) : false);
-        if ($hasValue) $this->message("Field '{$field}' already has a reference to '{$refpage->title}' [{$refpage->id}].", Notice::debug);
+        if ($page->getField($field) != NULL) {
+          $hasValue = (($page->{$field} instanceof WireArray) ? $page->$field->has($value) : $page->field == $value);
+          if ($hasValue) $this->message("Field '{$field}' already has a reference to '{$refpage->title}' [{$refpage->id}].", Notice::debug);
+        } else $hasValue = false;
       } else {
         if ($required) {
           $this->error("ERROR: referenced page with value '{$value}' not found for required field '{$field}' using selector '{$selector}'.");
