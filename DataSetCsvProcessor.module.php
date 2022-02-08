@@ -315,12 +315,14 @@ class DataSetCsvProcessor extends WireData implements Module {
             $this->message("Column {$column['column']} is interpreted as '{$column['type']}'.", Notice::debug);
           } else {    // glue array elements together
             $value = '';
-            $need_value = false;    // check if the field uses column values
+            $need_value = false;    // check if the field uses column values from the actual input
             $has_value = false;     // and at least one of them has a value
+            // if the glue array references any column from the input then we require a value for at least one column
+            // if it is a static string then it is used as is
             foreach ($column as $col) {
               if (is_string($col)) {
                 $value .= $col; // a glue string between column values
-                $has_value = true;
+                // $has_value = true;
               } else if (is_numeric($col)) {  // a column ID, get its data
                 $need_value = true;
                 if (!isset($csv_data[$col])) {  // invalid column specified
