@@ -916,7 +916,11 @@ class DataSet extends WireData implements Module {
       if ($fconfig->type instanceof FieldtypeDatetime && is_string($value)) {
         $this->message("Converting '{$value}' to timestamp.", Notice::debug);
         if (false === \DateTime::createFromFormat('Y-m-d', $value)) {
-          $this->error("ERROR: field '{$field}' contains invalid datatime value '{$value}'.");
+          if ($required) {
+            $this->error("ERROR: field '{$field}' contains invalid datetime value '{$value}'.");
+          } else {
+            $this->message("WARNING: field '{$field}' contains invalid datetime value '{$value}'. Skipping...");
+          }
           return false;
         }
         // TODO acquire the proper format from the field config
@@ -972,11 +976,12 @@ class DataSet extends WireData implements Module {
     }
     // check the actually stored value in the database
     // this is needed because above error checking does not work in some cases (e.g. unique fields)
-    $storedValue = $fconfig->type->loadPageField($page, $fconfig);
-    if ((is_array($storedValue) && !in_array($value, $storedValue)) || (!is_array($storedValue) && ($storedValue != $value))) {
-      $this->error("ERROR: could not set field '{$fieldname}' of type '{$fconfig->type}' to value '{$value}' on page '{$page->title}'. The actually stored value is " . var_export($storedValue, true));
-      return false;
-    }
+    // Unfortunately, this check does not work for certain field types, e.g. DateTime
+    // $storedValue = $fconfig->type->loadPageField($page, $fconfig);
+    // if ((is_array($storedValue) && !in_array($value, $storedValue)) || (!is_array($storedValue) && ($storedValue != $value))) {
+    //   $this->error("ERROR: could not set field '{$fieldname}' of type '{$fconfig->type}' to value '{$value}' on page '{$page->title}'. The actually stored value is " . var_export($storedValue, true));
+    //  return false;
+    //}
     return true;
   }
 
