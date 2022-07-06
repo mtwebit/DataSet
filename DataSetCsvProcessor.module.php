@@ -315,12 +315,14 @@ class DataSetCsvProcessor extends WireData implements Module {
             $this->message("Column {$column['column']} is interpreted as '{$column['type']}'.", Notice::debug);
           } else {    // glue array elements together
             $value = '';
-            $need_value = false;    // check if the field uses column values
+            $need_value = false;    // check if the field uses column values from the actual input
             $has_value = false;     // and at least one of them has a value
+            // if the glue array references any column from the input then we require a value for at least one column
+            // if it is a static string then it is used as is
             foreach ($column as $col) {
               if (is_string($col)) {
                 $value .= $col; // a glue string between column values
-                $has_value = true;
+                // $has_value = true;
               } else if (is_numeric($col)) {  // a column ID, get its data
                 $need_value = true;
                 if (!isset($csv_data[$col])) {  // invalid column specified
@@ -340,7 +342,7 @@ class DataSetCsvProcessor extends WireData implements Module {
             if ($need_value && !$has_value) {  // none of the columns used in the glue string has a value
               if (!isset($params['input']['silent_missing']))
                 $this->warning("WARNING: all columns values for constructing field '{$field}' are empty in ".$record);
-              continue; // go to the next field in the input
+              $value = ''; // set an empty value that later causes to skip this field and switch to the next
             }
             $value = trim($value);  // TODO make this configurable?
           }
@@ -350,8 +352,14 @@ class DataSetCsvProcessor extends WireData implements Module {
           return false; // stop processing records, the error needs to be fixed
         }
 
-        // skip the field if it is empty
-        if ((is_array($value) && !count($value)) || (is_string($value) && !strlen($value))) continue;
+        // check if the field is empty
+        if ((is_array($value) && !count($value)) || (is_string($value) && !strlen($value))) {
+          if (strpos($selector, '@'.$field)) {  // if this field is used in the selector
+            $selector = str_replace('@'.$field, "''", $selector); // specify an empty value for this field in the selector
+            $this->message("WARNING: Field {$field} presents in the Page selector but it got no value from the input {$record}.", Notice::debug);
+          }
+          continue; // go to the next field in the input
+        }
 
         // store the value
         $field_data[$field] = $value;
@@ -387,6 +395,8 @@ class DataSetCsvProcessor extends WireData implements Module {
                 continue 2; // go to the next record in the input
               } else {
                 $this->warning("WARNING: ignoring the field due to missing referenced page {$value} for field {$field} in the input ".$record);
+                $selector = str_replace('@'.$field, "''", $selector); // specify an empty value for this field in the selector
+                $this->message("WARNING: Field {$field} presents in the Page selector but it got no value from the input {$record}.", Notice::debug);
                 continue;   // process the next field
               }
             }

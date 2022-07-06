@@ -81,16 +81,16 @@ class DataSet extends WireData implements Module {
         $field->name = $fname;
         $field->label = $fcdata['label'];
         $field->type = $this->modules->get($fcdata['type']);
-	if ($fcdata['type'] == 'FieldtypeFile') {
+      if ($fcdata['type'] == 'FieldtypeFile') {
           $field->description = 'The file\'s description field should contain import rules in YAML or JSON format.';
           // $field->required = 1;
           // $field->attr("name+id", 'myimages');
-	  // $field->destinationPath = $upload_path;
-	  $field->extensions = 'csv xml';
+          // $field->destinationPath = $upload_path;
+          $field->extensions = 'csv xml';
           $field->maxFiles = 0;
-	  // $field->maxFilesize = 20*1024*1024; // 20 MiB
+          // $field->maxFilesize = 20*1024*1024; // 20 MiB
           $field->setIcon('fa-archive');
-	  // TODO how to set these?
+          // TODO how to set these?
           // $field->overwrite = 1;
           // $field->file descriptions...rows = 15;
         }
@@ -206,7 +206,8 @@ class DataSet extends WireData implements Module {
     }
     // TODO Query by name isn't the best idea
     $taskTitle = 'Import '.$fileConfig['name']." from {$pagefile->name} on page {$pagefile->page->title}";
-    $tasks = $this->tasker->getTasks('title='.$taskTitle);
+    $taskTitle = $this->sanitizer->selectorValue($taskTitle, array('useQuotes' => false));
+    $tasks = $this->tasker->getTasks("title='$taskTitle'");
     if (!count($tasks)) $event->return .= '
     <div class="actions DataSetActions" id="dataset_file_'.$id.'" style="display: inline !important;">
       DataSet <i class="fa fa-angle-right"></i>
@@ -214,7 +215,7 @@ class DataSet extends WireData implements Module {
          this file</span>
     </div>';
     else $event->return .= '
-      '.wire('modules')->get('TaskerAdmin')->renderTaskList('title='.$taskTitle, '', ' target="_blank"');
+      '.wire('modules')->get('TaskerAdmin')->renderTaskList("title='$taskTitle'", '', ' target="_blank"');
   }
 
   /**
@@ -240,7 +241,8 @@ class DataSet extends WireData implements Module {
     }
 
     $taskTitle = "Purge dataset on page {$field->hasPage->title}";
-    $tasks = $this->tasker->getTasks('title='.$taskTitle);
+    $taskTitle = $this->sanitizer->selectorValue($taskTitle, array('useQuotes' => false));
+    $tasks = $this->tasker->getTasks("title='$taskTitle'");
     if (!count($tasks)) $event->return .= '
     <div class="actions DataSetActions" id="dataset_file_all" style="display: inline !important;">
       DataSet <i class="fa fa-angle-right"></i>
@@ -248,7 +250,7 @@ class DataSet extends WireData implements Module {
         (DANGER: All child nodes with the above template will be removed!)</span>
     </div>';
     else $event->return .= '
-      '.wire('modules')->get('TaskerAdmin')->renderTaskList('title='.$taskTitle, '', ' target="_blank"');
+      '.wire('modules')->get('TaskerAdmin')->renderTaskList("title='$taskTitle'", '', ' target="_blank"');
   }
 
 
@@ -466,8 +468,8 @@ class DataSet extends WireData implements Module {
     }
 
     // check the page title
-    if (!isset($field_data['title']) || strlen($this->wire('sanitizer')->pageNameUTF8($field_data['title'], true))<1) {
-      $this->error("ERROR: invalid / empty page title: " . $field_data['title']);
+    if (!isset($field_data['title']) || strlen(trim($this->sanitizer->pageName($field_data['title'], true)))<2) {
+      $this->error("ERROR: invalid / empty page title.");
       return false;
     }
 
@@ -477,15 +479,19 @@ class DataSet extends WireData implements Module {
                   isset(wire('config')->dbCharset) ? isset(wire('config')->dbCharset) : '');
     }
     // find pages already present in the data set
-    $selector = 'title='.$this->wire('sanitizer')->selectorValue($title)
+    $selector = 'title='.$this->sanitizer->selectorValue($title, array('useQuotes' => false))
                .', template='.$dataSetConfig['pages']['template'].', include=all';
 */
 
-    $this->message("Checking existing content with selector '{$selector}'.", Notice::debug);
-
     // TODO speed up selectors...
     $selectorOptions = array('getTotal' => false);
-    $dataPage = $dataSetPage->child($selector.',check_access=0', $selectorOptions);
+    if (!isset($params['pages']['search_global'])) {
+      $this->message("Checking existing child pages with selector '{$selector}'.", Notice::debug);
+      $dataPage = $dataSetPage->child($selector.',check_access=0', $selectorOptions);
+    } else {
+    $this->message("Checking existing pages with global selector '{$selector}'.", Notice::debug);
+      $dataPage = $this->pages->findOne($selector.',check_access=0', $selectorOptions);
+    }
 
     if ($dataPage->id) { // found a page using the selector
       if (isset($params['pages']['merge']) || isset($params['pages']['overwrite'])) {
@@ -652,8 +658,8 @@ class DataSet extends WireData implements Module {
 
       // set and save the field's value
       if (!$this->setFieldValue($page, $fconfig, $field, $value, in_array($field, $overwrite_fields), $required)) {
-        // this is a fatal error if the field is required
-        if ($required) {
+        // this is a fatal error if the field is required and it has no value
+        if ($required && $page->getField($field) == NULL) {
           $this->error("ERROR: could not set the value for required field '{$field}'.");
           // TODO rollback to the page's old state?
           return false;
@@ -874,11 +880,15 @@ class DataSet extends WireData implements Module {
       $selector = $this->getPageSelector($fconfig, $value);
       $this->message($this->tasker->profilerGetTimestamp()."Page selector @ field {$field}: {$selector}.", Notice::debug);
       $refpage = $this->pages->get($selector);  // do not check for access and published status
+      // TODO use findRaw() instead of find and get, see https://processwire.com/blog/posts/find-faster-and-more-efficiently/#finding-faster-with-raw-data
+      // $refpage = current($this->pages->findRaw($selector. ',limit=1,check_access=0', array('title', 'id'), array('objects' => true)));
       if ($refpage->id) {
         $this->message($this->tasker->profilerGetTimestamp()."Found referenced page '{$refpage->title}' for field '{$field}' using the selector '{$selector}'.", Notice::debug);
         $value = $refpage->id;
-        $hasValue = ($page->$field ? $page->$field->has($selector) : false);
-        if ($hasValue) $this->message("Field '{$field}' already has a reference to '{$refpage->title}' [{$refpage->id}].", Notice::debug);
+        if ($page->getField($field) != NULL) {
+          $hasValue = (($page->{$field} instanceof WireArray) ? $page->$field->has($value) : $page->field == $value);
+          if ($hasValue) $this->message("Field '{$field}' already has a reference to '{$refpage->title}' [{$refpage->id}].", Notice::debug);
+        } else $hasValue = false;
       } else {
         if ($required) {
           $this->error("ERROR: referenced page with value '{$value}' not found for required field '{$field}' using selector '{$selector}'.");
@@ -904,7 +914,11 @@ class DataSet extends WireData implements Module {
       if ($fconfig->type instanceof FieldtypeDatetime && is_string($value)) {
         $this->message("Converting '{$value}' to timestamp.", Notice::debug);
         if (false === \DateTime::createFromFormat('Y-m-d', $value)) {
-          $this->error("ERROR: field '{$field}' contains invalid datatime value '{$value}'.");
+          if ($required) {
+            $this->error("ERROR: field '{$field}' contains invalid datetime value '{$value}'.");
+          } else {
+            $this->message("WARNING: field '{$field}' contains invalid datetime value '{$value}'. Skipping...");
+          }
           return false;
         }
         // TODO acquire the proper format from the field config
@@ -918,17 +932,17 @@ class DataSet extends WireData implements Module {
     if ($overwrite) {
       $this->message("Overwriting field '{$field}''s old value with '{$value}'.", Notice::debug);
       $page->$field = $value;
-      return $this->saveField($page, $field, $value);
+      return $this->saveField($page, $field, $fconfig, $value);
     }
     if (!$hasValue) {
       if ($page->$field && $page->$field instanceof WireArray && $page->$field->count()) {
         $this->message("Adding new value '{$value}' to field '{$field}'.", Notice::debug);
         $page->$field->add($value);
-        return $this->saveField($page, $field, $value);
+        return $this->saveField($page, $field, $fconfig, $value);
       }
       $this->message("Setting field '{$field}' = '{$value}'.", Notice::debug);
       $page->$field = $value;
-      return $this->saveField($page, $field, $value);
+      return $this->saveField($page, $field, $fconfig, $value);
     }
     $this->message("WARNING: not updating already populated field '{$field}'.", Notice::debug);
     return false;
@@ -940,10 +954,11 @@ class DataSet extends WireData implements Module {
    * 
    * @param $page PW Page that holds the field
    * @param $field field name
+   * @param $fconfig field config
    * @param $value field value to set
    * @returns true on success, false on failure
    */
-  public function saveField($page, $fieldname, $value) {
+  public function saveField($page, $fieldname, $fconfig, $value) {
     try {
       if (!$page->save($fieldname)) {
         $this->error("ERROR: could not set field '{$fieldname}' = '{$value}' on page '{$page->title}'.");
@@ -957,6 +972,14 @@ class DataSet extends WireData implements Module {
       $this->error("ERROR: got an exception while setting field '{$fieldname}' = '{$value}' on page '{$page->title}': ".$e->getMessage().'.');
       return false;
     }
+    // check the actually stored value in the database
+    // this is needed because above error checking does not work in some cases (e.g. unique fields)
+    // Unfortunately, this check does not work for certain field types, e.g. DateTime
+    // $storedValue = $fconfig->type->loadPageField($page, $fconfig);
+    // if ((is_array($storedValue) && !in_array($value, $storedValue)) || (!is_array($storedValue) && ($storedValue != $value))) {
+    //   $this->error("ERROR: could not set field '{$fieldname}' of type '{$fconfig->type}' to value '{$value}' on page '{$page->title}'. The actually stored value is " . var_export($storedValue, true));
+    //  return false;
+    //}
     return true;
   }
 

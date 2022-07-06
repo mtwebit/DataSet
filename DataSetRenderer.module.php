@@ -27,19 +27,22 @@ class DataSetRenderer extends WireData implements Module {
   );
   // default initial letters for navigation trees
   public $initialLetters = array(
-    'a' => 'a, á',
+    'a' => 'a',
+    'á' => 'á',
     'b' => 'b',
     'c' => 'c',
     'cs' => 'cs',
     'd' => 'd',
     'dz' => 'dz',
     'dzs' => 'dzs',
-    'e' => 'e, é',
+    'e' => 'e',
+    'é' => 'é',
     'f' => 'f',
     'g' => 'g',
     'gy' => 'gy',
     'h' => 'h',
-    'i' => 'i, í',
+    'i' => 'i',
+    'í' => 'í',
     'j' => 'j',
     'k' => 'k',
     'l' => 'l',
@@ -47,8 +50,10 @@ class DataSetRenderer extends WireData implements Module {
     'm' => 'm',
     'n' => 'n',
     'ny' => 'ny',
-    'o' => 'o, ó',
-    'ö' => 'ö, ő',
+    'o' => 'o',
+    'ó' => 'ó',
+    'ö' => 'ö',
+    'ő' => 'ő',
     'p' => 'p',
     'q' => 'q',
     'r' => 'r',
@@ -56,8 +61,10 @@ class DataSetRenderer extends WireData implements Module {
     'sz' => 'sz',
     't' => 't',
     'ty' => 'ty',
-    'u' => 'u, ú',
-    'ü' => 'ü, ű',
+    'u' => 'u',
+    'ú' => 'ú',
+    'ü' => 'ü',
+    'ű' => 'ű',
     'v' => 'v',
     'w' => 'w',
     'x' => 'x',
@@ -245,9 +252,10 @@ class DataSetRenderer extends WireData implements Module {
    * Sanitize user input
    * 
    * @param $input string
+   * @param $substitute_accents substitute accented chars
    * @returns string to use as selector or array index
    */
-  public function sanitizeInput($input) {
+  public function sanitizeInput($input, $substitute_accents = false) {
     // TODO ?? mb_internal_encoding('UTF-8');
     // TODO ?? html_entity_decode($input);
 
@@ -255,7 +263,7 @@ class DataSetRenderer extends WireData implements Module {
     $ret = mb_ereg_replace('["]', '', $input);
 
     // replace letters with others
-    foreach ($this->letterSubstitutions as $what => $with)
+    if ($substitute_accents) foreach ($this->letterSubstitutions as $what => $with)
       $ret = mb_ereg_replace($what, $with, $ret);
 
     // lower case
