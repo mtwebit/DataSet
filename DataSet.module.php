@@ -468,7 +468,7 @@ class DataSet extends WireData implements Module {
     }
 
     // check the page title
-    if (!isset($field_data['title']) || strlen(trim($this->sanitizer->pageName($field_data['title'], true)))<2) {
+    if (!isset($field_data['title']) || strlen(trim($this->sanitizer->pageNameUTF8($field_data['title'], true)))<1) {
       $this->error("ERROR: invalid / empty page title.");
       return false;
     }
