@@ -22,5 +22,5 @@ Check the collation:
 * SHOW VARIABLES LIKE 'collation%';
 * SELECT TABLE_NAME, COLUMN_NAME, COLLATION_NAME  FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA='your-pw-db-name';
 
-Choose and set the proper collation (e.g. utf8_hungarian_ci) for field_ tables and columns.
+Choose and set the proper collation (e.g. uca1400_...._as_ci for accent sensitive and case insensitive data handling) for field_ tables and columns.
 (PhpMyAdmin might be a good choice for this task.)  
