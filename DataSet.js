@@ -15,7 +15,7 @@ function DataSet(command, pageid, title, pathname, fileid) {
       progressLabel = $('div#dataset_file_' + fileid + ''),
       args = encodeURI('module=DataSet&function=' + command + '&pageId=' + pageid + '&title=' + title + '&file=' + pathname);
 
-  // alert(taskerAdminApiUrl + '/?cmd=create&' + args);
+  // alert(taskerAdminApiUrl + '?cmd=create&' + args);
 
   progressLabel.text('Creating a task to ' + command + ' the DataSet...');
 
@@ -23,7 +23,7 @@ function DataSet(command, pageid, title, pathname, fileid) {
   $(window).bind('beforeunload', function() { unloading = true; });
 
   // send the HTTP request
-  performApiCall(taskerAdminApiUrl + '/?cmd=create&' + args, createCallback);
+  performApiCall(taskerAdminApiUrl + '?cmd=create&' + args, createCallback);
 
   function performApiCall(url, callback) {
     $.ajax({
