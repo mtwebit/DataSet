@@ -431,7 +431,7 @@ class DataSetCsvProcessor extends WireData implements Module {
 
       // Report progress and check for events if a milestone is reached
       if ($tasker->saveProgressAtMilestone($task, $taskData) && count($newPages)) {
-        $this->message('Import successful for '.implode(', ', $newPages));
+        $this->message('Import successful for '.implode(', ', $newPages), Notice::debug);
         // set the next milestone
         $taskData['milestone'] = $taskData['records_processed'] + 30;
         // clear the new pages array (the have been already reported in the log)
@@ -448,7 +448,7 @@ class DataSetCsvProcessor extends WireData implements Module {
     fclose($fd);
 
     // print out some info for the user
-    if (count($newPages)) $this->message('Import successful for '.implode(', ', $newPages));
+    if (count($newPages)) $this->message('Import successful for '.implode(', ', $newPages), Notice::debug);
 
     return true;
   }

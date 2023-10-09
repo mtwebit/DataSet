@@ -417,7 +417,7 @@ class DataSet extends WireData implements Module {
 
       // Report progress and check for events if a milestone is reached
       if ($this->tasker->saveProgressAtMilestone($task, $taskData) && count($deleted)) {
-        $this->message('Deleted pages: '.implode(', ', $deleted));
+        $this->message('Deleted pages: '.implode(', ', $deleted), Notice::debug);
         // set a new milestone
         $taskData['milestone'] = $taskData['records_processed'] + 50;
         // clear the deleted pages array (the have been already reported in the log)
@@ -434,7 +434,7 @@ class DataSet extends WireData implements Module {
       }
     } // foreach pages to delete
 
-    if (count($deleted)) $this->message('Deleted pages: '.implode(', ', $deleted));
+    if (count($deleted)) $this->message('Deleted pages: '.implode(', ', $deleted), Notice::debug);
 
     if ($taskData['records_processed'] == $taskData['max_records']) {
       $taskData['task_done'] = 1;
@@ -484,13 +484,13 @@ class DataSet extends WireData implements Module {
 */
 
     // TODO speed up selectors...
-    $selectorOptions = array('getTotal' => false);
+    $selectorOptions = array('findOne' => True);
     if (!isset($params['pages']['search_global'])) {
       $this->message("Checking existing child pages with selector '{$selector}'.", Notice::debug);
       $dataPage = $dataSetPage->child($selector.',check_access=0', $selectorOptions);
     } else {
     $this->message("Checking existing pages with global selector '{$selector}'.", Notice::debug);
-      $dataPage = $this->pages->findOne($selector.',check_access=0', $selectorOptions);
+      $dataPage = $this->pages->find($selector.',check_access=0', $selectorOptions);
     }
 
     if ($dataPage->id) { // found a page using the selector

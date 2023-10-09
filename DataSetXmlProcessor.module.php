@@ -279,7 +279,7 @@ class DataSetXmlProcessor extends WireData implements Module {
 
       // Report progress and check for events if a milestone is reached
       if ($tasker->saveProgressAtMilestone($task, $taskData)) {
-        $this->message('Import successful for '.implode(', ', $newPages));
+        $this->message('Import successful for '.implode(', ', $newPages), Notice::debug);
         // set the next milestone
         $taskData['milestone'] = $entrySerial + 20;
         // clear the new pages array (the have been already reported in the log)
@@ -297,7 +297,7 @@ class DataSetXmlProcessor extends WireData implements Module {
     $xml->close();
 
     // print out some info for the user
-    $this->message('Import successful for '.implode(', ', $newPages));
+    $this->message('Import successful for '.implode(', ', $newPages), Notice::debug);
 
     return true;
   }
