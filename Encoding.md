@@ -2,9 +2,12 @@
 
 ## ProcessWire
 Ensure that you use UTF8 encoding whenever it is applicable.  
-Configuration settings:  
+For example, in your site/config.php check the following settings:  
 * $config->pageNameCharset = 'UTF8';
 * $config->pageNameWhitelist = '... set it properly ...'; // the default is not good enough for some charsets
+* $config->dbCharset = 'utf8';
+* setlocale(LC_ALL, 'en_US.UTF-8');
+
 
 Also set the .htaccess file if needed. See [this](https://processwire.com/blog/posts/hello-%E5%81%A5%E5%BA%B7%E9%95%B7%E5%A3%BD%C2%B7%E7%B9%81%E6%A6%AE%E6%98%8C%E7%9B%9B/) post.  
 You can check the results by issuing these commands (using e.g. Tracy Debugger's console):  
@@ -19,5 +22,5 @@ Check the collation:
 * SHOW VARIABLES LIKE 'collation%';
 * SELECT TABLE_NAME, COLUMN_NAME, COLLATION_NAME  FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA='your-pw-db-name';
 
-Choose and set the proper collation (e.g. utf8_hungarian_ci) for field_ tables and columns.
+Choose and set the proper collation (e.g. uca1400_...._as_ci for accent sensitive and case insensitive data handling) for field_ tables and columns.
 (PhpMyAdmin might be a good choice for this task.)  
