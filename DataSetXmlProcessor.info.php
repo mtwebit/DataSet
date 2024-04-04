@@ -13,7 +13,7 @@
 
 $info = array(
   'title' => 'DataSet XML import',
-  'version' => '0.9.1',
+  'version' => '0.9.2',
   'summary' => 'This module provides XML import functions for DataSet',
   'href' => 'https://github.com/mtwebit/DataSet',
   'icon' => 'upload',

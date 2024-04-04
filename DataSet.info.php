@@ -13,7 +13,7 @@
 
 $info = array(
   'title' => 'DataSet',
-  'version' => '1.0.0',
+  'version' => '1.0.1',
   'summary' => 'This module provides core functions to import, manipulate and display large sets of data.',
   'href' => 'https://github.com/mtwebit/DataSet',
   'singular' => true, // contains hooks
