@@ -15,10 +15,6 @@ The software was developed for the [Mikes-dictionary] and other Digital Humaniti
 ## How to use it
 See the [wiki](https://github.com/mtwebit/DataSet/wiki).
 
-## Important notice
-This module is under development.  
-It is now considered fairly stable but things may be broken and the internal API may change at any time.  
-
 ## History
 The first version was created in 2017 to import a large XML dataset into ProcessWire pages.  
 The CSV import sub-module was created in 2018. It was tested to import large dataset containing 200k+ entries and many kinds of references between them.  
